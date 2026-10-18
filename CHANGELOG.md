@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.2 (2026-10-18)
+
+Same engine as v0.1.1 (patches 001-092); install fix only.
+
+
+- macOS: new `Copy game from ISO.command` in the release zip (`tools/copy-game-from-iso.sh`) copies the game out of the `.iso` without mounting it. Modern macOS can't mount the disc's classic HFS side, so double-clicking the `.iso` showed nothing. INSTALL.md and README updated.
+
 ## v0.1.1 (2026-10-18)
 
 Same engine as v0.1.0 (patches 001-092, no engine changes); docs and launcher fixes only.

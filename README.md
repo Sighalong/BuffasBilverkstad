@@ -69,8 +69,19 @@ game/
 └── XTRAS/     plus a copy of DATA/FILEIO.X32
 ```
 
+**From an `.iso` (any system with bsdtar, including every Mac):** no mounting needed.
+
+```bash
+tools/copy-game-from-iso.sh disc.iso game
+```
+
+It copies `DATA`, `MOVIES` and `XTRAS` and puts the extra copy of `FILEIO.X32` in place. In the macOS release zip
+the same script is the double-clickable `Copy game from ISO.command`. Modern macOS can't mount this ISO: the disc
+is a Mac/PC hybrid, and macOS no longer reads its classic HFS side.
+
+**By hand (CD, or a mounted ISO on Windows or Linux):**
+
 1. Mount the ISO or insert the CD:
-   - **macOS:** double-click the `.iso`, or run `hdiutil attach disc.iso`.
    - **Windows:** right-click the `.iso` and choose *Mount*.
    - **Linux:** open it with your file manager, or run `sudo mount -o loop,ro disc.iso /mnt`.
 2. Copy `DATA`, `MOVIES` and `XTRAS` into `game/`.

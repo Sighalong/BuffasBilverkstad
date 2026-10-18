@@ -31,18 +31,42 @@ If it says *Chip: Apple M…*, you're good. On an older Intel Mac there's no rea
 
 Inside the folder is **Buffas Bilverkstad.app**. That's the program that runs the game.
 
-### Mac step 2: Copy the game from the CD
+### Mac step 2: Copy the game from the disc image
 
-The game files only need to be copied once. After that, you can put the CD away.
+The game files only need to be copied once. After that, you can delete the `.iso` or put the CD away.
 
-1. **Insert the CD**, or **double-click the `.iso` file**. A disc icon appears on your desktop or in the
-   Finder sidebar under *Locations*. Open it.
-2. In your Documents folder, make a new folder called **`Mulle game`**
-   (right-click an empty spot → *New Folder*).
-3. From the disc, drag the folders **DATA**, **MOVIES** and **XTRAS** into `Mulle game`. This can take a minute.
-4. One extra step the game needs: open `Mulle game` → **DATA**, find the file **`FILEIO.X32`**, and copy it into
-   `Mulle game` → **XTRAS** as well. (Hold the **Option ⌥** key while dragging to copy it instead of moving it.)
-5. Eject the disc (click the ⏏ button next to it in the Finder sidebar).
+**Don't double-click the `.iso`.** The disc is a Mac/PC hybrid from 1997, and its Mac side uses a format
+(classic HFS) that macOS no longer opens, so nothing useful appears. The helper below reads the PC side instead.
+
+1. Put your **`.iso` file** in the `BuffasBilverkstad-…` folder, next to *Buffas Bilverkstad.app*.
+   (If it's somewhere else, the helper asks you to pick it.)
+2. Double-click **`Copy game from ISO.command`** in the same folder. A Terminal window opens and copies the game
+   to a new folder **`Mulle game`** in your **Documents** folder. This takes about a minute.
+   It ends with *Done. Your game folder is: …*. Then you can close the Terminal window.
+3. If macOS says the helper *can't be opened* or *can't be verified*, click **Done**, open
+   **Apple menu → System Settings → Privacy & Security**, click **Open Anyway** next to *Copy game from ISO.command*,
+   and confirm. (The same thing happens with the app in step 3.)
+
+<details>
+<summary>Prefer Terminal, or have the original CD?</summary>
+
+Open **Terminal** (Applications → Utilities) and run these three lines one at a time. In the middle one, replace
+`PATH-TO.iso` by dragging your `.iso` file into the Terminal window.
+
+```bash
+mkdir -p ~/Documents/Mulle\ game
+```
+```bash
+tar -xf PATH-TO.iso -C ~/Documents/Mulle\ game DATA MOVIES XTRAS
+```
+```bash
+chmod -R u+w ~/Documents/Mulle\ game && cp ~/Documents/Mulle\ game/DATA/FILEIO.X32 ~/Documents/Mulle\ game/XTRAS/
+```
+
+With the original CD: if the disc opens in the Finder, drag **DATA**, **MOVIES** and **XTRAS** into a new folder
+`Mulle game` in Documents and copy `DATA/FILEIO.X32` into `XTRAS`. If it doesn't open, make an `.iso` of the CD on a
+Windows or Linux computer and use the helper with that.
+</details>
 
 Your `Mulle game` folder should now look like [this](#the-game-folder).
 
@@ -198,7 +222,7 @@ You can skip *Add the game* below; read [Playing](#playing) for tips.
 The program shows a window with an empty game list.
 
 1. Click **Add Game…**.
-2. Select your game folder (`Mulle game` on Mac, `C:\Mulle\game` on Windows), the one with DATA, MOVIES and XTRAS
+2. Select your game folder (`Mulle game` in Documents on Mac, `C:\Mulle\game` on Windows), the one with DATA, MOVIES and XTRAS
    inside, and confirm (**Choose** on Mac, **Choose** or **OK** on Windows).
 3. The program recognises *Mulle Meck bygger bilar*. If it shows a message that the game isn't fully supported,
    continue anyway. Then click **OK** on the settings window that appears. You don't need to change anything.
@@ -233,6 +257,7 @@ game folder
 | Problem | What to do |
 |---|---|
 | **Add Game…** says *no game found* | You probably selected the wrong folder. Select the game folder itself, not DATA or a folder above it. Check that DATA, MOVIES and XTRAS are all inside. |
+| Mac: **double-clicking the `.iso` shows nothing** or an error | That's expected on modern macOS. Use `Copy game from ISO.command` ([Mac step 2](#mac-step-2-copy-the-game-from-the-disc-image)). |
 | The game starts but **gets stuck at the beginning**, or names aren't remembered | Check that `FILEIO.X32` is in the XTRAS folder too (step 1 or 2, point 4). |
 | Windows or Linux: the build stops with an **error** | Check that step 2 (installing the tools) finished without errors, then paste the `bash build.sh` line again. If it still fails, report it (below) and include the last 20 lines of text. |
 | Windows: **`scummvm.exe` is missing a DLL** when started by double-clicking | Start it from the **MSYS2 MINGW64** window as in [Windows step 4](#windows-step-4-start-it). |

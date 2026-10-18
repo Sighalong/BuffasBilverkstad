@@ -34,6 +34,8 @@ codesign -s - --deep --force "$APP"
 
 cp "$ROOT"/{LICENSE,README.md,INSTALL.md,CHANGELOG.md,run.sh} "$D/"
 cp "$ROOT/tools/cap-log.pl" "$D/tools/"
+cp "$ROOT/tools/copy-game-from-iso.sh" "$D/Copy game from ISO.command"
+chmod 755 "$D/Copy game from ISO.command"
 cat > "$D/SOURCE.txt" <<EOF
 Buffas Bilverkstad $VER: ScummVM 2026.4.0 (Director engine only) with the patches from
 https://github.com/Sighalong/BuffasBilverkstad (tag $VER), licensed GPL-3.0-or-later (see LICENSE).
