@@ -32,7 +32,7 @@ plutil -replace CFBundleDisplayName -string "Buffas Bilverkstad" "$P" 2>/dev/nul
 	plutil -insert CFBundleDisplayName -string "Buffas Bilverkstad" "$P"
 codesign -s - --deep --force "$APP"
 
-cp "$ROOT"/{LICENSE,README.md,CHANGELOG.md,run.sh} "$D/"
+cp "$ROOT"/{LICENSE,README.md,INSTALL.md,CHANGELOG.md,run.sh} "$D/"
 cp "$ROOT/tools/cap-log.pl" "$D/tools/"
 cat > "$D/SOURCE.txt" <<EOF
 Buffas Bilverkstad $VER: ScummVM 2026.4.0 (Director engine only) with the patches from

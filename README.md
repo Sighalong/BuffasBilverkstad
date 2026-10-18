@@ -15,10 +15,14 @@ garage, junkyard, yard, driving and destinations.
 > and no ISO. You need your own legally obtained copy of the game. *Mulle Meck* and the game belong to their respective
 > rights holders; this project is not affiliated with them or with the ScummVM team.
 
+**Just want to play on a Mac?** Follow the step-by-step [install guide](INSTALL.md). No programming needed.
+The rest of this page is the technical version.
+
 ## Contents
 
 | Path | What it is |
 |---|---|
+| `INSTALL.md` | Step-by-step install guide for players (macOS) |
 | `patches/*.patch` | Engine patches, applied in numeric order to ScummVM 2026.4.0 (`diag-`/`mdiag-` ones add opt-in diagnostics) |
 | `patches/sdl/` | One macOS-only SDL2 fix (hidden Cocoa cursor) |
 | `build.sh` | Downloads the pinned sources (checksum-verified), applies the patches, builds a Director-only ScummVM |
