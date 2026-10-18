@@ -1,0 +1,533 @@
+From af9f15a08eea235534634c6050d0e1eb60c29cbf Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:32:09 +0200
+Subject: [PATCH] 0001 lead fixes 1-16
+
+---
+ engines/director/cast.cpp                 |  6 +-
+ engines/director/lingo/lingo-builtins.cpp | 89 +++++++++++++++++++++++
+ engines/director/lingo/lingo-builtins.h   |  1 +
+ engines/director/lingo/lingo-bytecode.cpp |  4 +-
+ engines/director/lingo/lingo-code.cpp     | 14 +++-
+ engines/director/lingo/lingo-events.cpp   | 43 +++++++++--
+ engines/director/lingo/lingo-funcs.cpp    |  5 +-
+ engines/director/lingo/lingo-the.cpp      | 35 ++++++++-
+ engines/director/lingo/lingo.cpp          |  8 +-
+ engines/director/score.cpp                | 25 ++++++-
+ engines/director/score.h                  |  1 +
+ engines/director/sprite.cpp               | 17 ++++-
+ 12 files changed, 225 insertions(+), 23 deletions(-)
+
+diff --git a/engines/director/cast.cpp b/engines/director/cast.cpp
+index 9b72fcd..2426f2e 100644
+--- a/engines/director/cast.cpp
++++ b/engines/director/cast.cpp
+@@ -286,10 +286,8 @@ bool Cast::duplicateCastMember(CastMember *source, CastMemberInfo *info, int tar
+ 	if (target->_children.empty() && source->getCast() == this)
+ 		target->_children = source->_children;
+ 
+-	if (info) {
+-		CastMemberInfo *newInfo = new CastMemberInfo(*info);
+-		_castsInfo[targetId] = newInfo;
+-	}
++	// Always give the copy an info record, so Lingo can set its name
++	_castsInfo[targetId] = info ? new CastMemberInfo(*info) : new CastMemberInfo();
+ 	setCastMember(targetId, target);
+ 
+ 	debugCN(7, kDebugSaving, "loaded cast: [");
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 9695c04..0ff9998 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -248,6 +248,7 @@ static const BuiltinProto builtins[] = {
+ 	// References
+ 	{ "cast",			LB::b_member,			1, 2, 400, FBLTIN },	//			D4 f
+ 	{ "castLib",		LB::b_castLib,		1, 1, 500, FBLTIN },	//				D5 f
++	{ "new",			LB::b_new,			1, 2, 500, FBLTIN },	//				D5 f
+ 	{ "member",			LB::b_member,		1, 2, 500, FBLTIN },	//				D5 f
+ 	{ "script",			LB::b_script,		1, 2, 400, FBLTIN },	//			D4 f
+ 	{ "sprite",			LB::b_sprite,		1, 1, 500, FBLTIN },	//				D5 f
+@@ -967,6 +968,12 @@ void LB::b_deleteAt(int nargs) {
+ 	TYPECHECK2(list, ARRAY, PARRAY);
+ 	int index = indexD.asInt();
+ 
++	int size = list.type == ARRAY ? list.u.farr->arr.size() : list.u.parr->arr.size();
++	if (index < 1 || index > size) {
++		g_lingo->lingoError("b_deleteAt: index out of bounds (%d of %d)", index, size);
++		return;
++	}
++
+ 	switch (list.type) {
+ 	case ARRAY:
+ 		list.u.farr->arr.remove_at(index - 1);
+@@ -1203,6 +1210,20 @@ void LB::b_getOne(int nargs) {
+ void LB::b_getPos(int nargs) {
+ 	Datum val = g_lingo->pop();
+ 	Datum list = g_lingo->pop();
++
++	// Points and rects behave as linear lists of numbers (Mulle Meck's
++	// setAnimLoc does getPos(point, -4711))
++	if (list.type == POINT || list.type == RECT) {
++		Datum d(0);
++		for (uint i = 0; i < list.u.farr->arr.size(); i++) {
++			if (LC::eqDataStrict(list.u.farr->arr[i], val).asInt()) {
++				d.u.i = i + 1;
++				break;
++			}
++		}
++		g_lingo->push(d);
++		return;
++	}
+ 	TYPECHECK2(list, ARRAY, PARRAY);
+ 
+ 	switch (list.type) {
+@@ -3518,6 +3539,11 @@ void LB::b_sendSprite(int nargs) {
+ 	Score *score = movie ? movie->getScore() : nullptr;
+ 	Channel *channel = score ? score->getChannelById((uint16)spriteNum) : nullptr;
+ 	if (channel) {
++		// Director applies "go" before the next statement runs, e.g. Mulle Meck's
++		// name screen does go(#next) then sendSprite() to a sprite from that frame.
++		if (channel->_scriptInstanceList.empty() && score->applyPendingJump())
++			channel = score->getChannelById((uint16)spriteNum);
++
+ 		if (channel->_scriptInstanceList.empty() && channel->_sprite && !channel->_sprite->_behaviors.empty())
+ 			score->createScriptInstances(score->getCurrentFrameNum());
+ 
+@@ -4162,6 +4188,69 @@ void LB::b_castLib(int nargs) {
+ 	g_lingo->push(res);
+ }
+ 
++void LB::b_new(int nargs) {
++	// new(#type, castLib x) or new(#type, member n of castLib x) creates an
++	// empty cast member. We clone an existing member of that type instead;
++	// callers like Mulle Meck's copyMember replace its media right away.
++	Datum where;
++	if (nargs > 2)
++		g_lingo->dropStack(nargs - 2);
++	if (nargs >= 2)
++		where = g_lingo->pop();
++	Datum type = g_lingo->pop();
++	Datum res;
++
++	if (type.type != SYMBOL) {
++		g_lingo->lingoError("b_new: expected a cast type symbol, got %s", type.type2str());
++		g_lingo->push(res);
++		return;
++	}
++
++	Movie *movie = g_director->getCurrentMovie();
++	Common::String typeName = type.asString();
++	if (typeName.equalsIgnoreCase("field"))
++		typeName = "text";
++
++	int castLib = DEFAULT_CAST_LIB;
++	int target = 0;
++	if (where.type == CASTLIBREF) {
++		castLib = where.u.i;
++	} else if (where.type == CASTREF) {
++		castLib = where.u.cast->castLib;
++		target = where.u.cast->member;
++	}
++
++	if (movie->getCasts()->contains(castLib)) {
++		Cast *targetCast = movie->getCasts()->getVal(castLib);
++		if (!target)
++			target = targetCast->getNextUnusedID();
++
++		// Prefer a template from the target cast, then any other cast
++		CastMemberID source;
++		Common::Array<int> libs;
++		libs.push_back(castLib);
++		for (auto &it : *movie->getCasts())
++			if (it._key != castLib)
++				libs.push_back(it._key);
++		for (uint i = 0; i < libs.size() && !source.member; i++) {
++			Cast *cast = movie->getCasts()->getVal(libs[i]);
++			for (auto &m : *cast->_loadedCast) {
++				if (m._value && m._key != target && typeName.equalsIgnoreCase(castType2str(m._value->_type))) {
++					source = CastMemberID(m._key, libs[i]);
++					break;
++				}
++			}
++		}
++
++		if (source.member && movie->duplicateCastMember(source, CastMemberID(target, castLib)))
++			res = Datum(CastMemberID(target, castLib));
++	}
++
++	if (res.type != CASTREF)
++		warning("b_new: could not create a #%s member in castLib %d", typeName.c_str(), castLib);
++	g_lingo->push(res);
++}
++
+ void LB::b_member(int nargs) {
+ 	CastMemberID res;
+ 	if (nargs == 1) {
+diff --git a/engines/director/lingo/lingo-builtins.h b/engines/director/lingo/lingo-builtins.h
+index d3bc853..838c1c1 100644
+--- a/engines/director/lingo/lingo-builtins.h
++++ b/engines/director/lingo/lingo-builtins.h
+@@ -207,6 +207,7 @@ void b_version(int nargs);
+ 
+ void b_cast(int nargs);
+ void b_castLib(int nargs);
++void b_new(int nargs);
+ void b_member(int nargs);
+ void b_script(int nargs);
+ void b_sprite(int nargs);
+diff --git a/engines/director/lingo/lingo-bytecode.cpp b/engines/director/lingo/lingo-bytecode.cpp
+index 71e3117..e25e84c 100644
+--- a/engines/director/lingo/lingo-bytecode.cpp
++++ b/engines/director/lingo/lingo-bytecode.cpp
+@@ -1701,7 +1701,9 @@ ScriptContext *LingoCompiler::compileLingoV4(Common::SeekableReadStreamEndian &s
+ 
+ 	if (!_assemblyContext->isFactory()) {
+ 		// Register this context's functions with the containing archive.
+-		if (scriptType == kScoreScript || scriptType == kMovieScript) {
++		// From D6, score scripts are behaviors: their handlers are only reached
++		// through messages, and must not shadow builtins like new(#field, ...).
++		if (scriptType == kMovieScript || (scriptType == kScoreScript && g_director->getVersion() < 600)) {
+ 			for (auto &it : _assemblyContext->_functionHandlers) {
+ 				if (!_assemblyArchive->functionHandlers.contains(it._key)) {
+ 					_assemblyArchive->functionHandlers[it._key] = it._value;
+diff --git a/engines/director/lingo/lingo-code.cpp b/engines/director/lingo/lingo-code.cpp
+index db6ff97..ea068c5 100644
+--- a/engines/director/lingo/lingo-code.cpp
++++ b/engines/director/lingo/lingo-code.cpp
+@@ -1692,6 +1692,16 @@ void LC::call(const Common::String &name, int nargs, bool allowRetVal) {
+ 		}
+ 	}
+ 
++	// A builtin called from inside an object whose own handler has the same name
++	// (e.g. Mulle Meck's "on save me" calling save(castLib "data")) is the builtin
++	// unless the object itself is passed. Otherwise the handler would recurse.
++	bool preferBuiltin = false;
++	if (g_director->getVersion() >= 500 && nargs > 0 &&
++			(g_lingo->_builtinFuncs.contains(name) || g_lingo->_builtinCmds.contains(name))) {
++		Datum firstArg = g_lingo->peek(nargs - 1);
++		preferBuiltin = firstArg.type != OBJECT && !firstArg.isVarRef();
++	}
++
+ 	// If we're calling from within a me object, and it has a function handler with a
+ 	// matching name, include the me object in the CFrame (so we still get property lookups).
+ 	// Doesn't matter that the first arg isn't the me object (which would have been caught
+@@ -1700,7 +1710,7 @@ void LC::call(const Common::String &name, int nargs, bool allowRetVal) {
+ 	// If the method is called from outside and without the object as the first arg,
+ 	// it will still work using the normal getHandler lookup.
+ 	// However properties will return garbage (the number 3??).
+-	if (g_lingo->_state->me.type == OBJECT) {
++	if (g_lingo->_state->me.type == OBJECT && !preferBuiltin) {
+ 		AbstractObject *target = g_lingo->_state->me.u.obj;
+ 		funcSym = target->getMethod(name);
+ 		if (funcSym.type != VOIDSYM) {
+@@ -1711,6 +1721,8 @@ void LC::call(const Common::String &name, int nargs, bool allowRetVal) {
+ 
+ 	// Handler
+ 	funcSym = g_lingo->getHandler(name);
++	if (preferBuiltin && funcSym.type != VOIDSYM && funcSym.ctx && funcSym.ctx == g_lingo->_state->context)
++		funcSym = Symbol();
+ 
+ 	if (g_lingo->_builtinListHandlers.contains(name) && nargs >= 1) {
+ 		// Lingo builtin functions in the "List" category have very strange override mechanics.
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index f58d776..810feb2 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -466,6 +466,21 @@ void Movie::queueEvent(Common::Queue<LingoEvent> &queue, LEvent event, int targe
+ 		}
+ 	}
+ 
++	// D6 sends enterFrame/exitFrame to every sprite's behaviors (one call per
++	// channel from broadcastEvent), then once to the frame and movie scripts.
++	// Mulle Meck's custom cursor sprite follows the mouse from exitFrame.
++	if (g_director->getVersion() >= 600 && targetId != 0 &&
++			(event == kEventEnterFrame || event == kEventExitFrame)) {
++		Channel *channel = _score->getChannelById(targetId);
++		if (channel) {
++			for (uint i = 0; i < channel->_scriptInstanceList.size(); i++) {
++				bool passThrough = (i != channel->_scriptInstanceList.size() - 1);
++				queue.push(LingoEvent(event, eventId, kSpriteHandler, passThrough, pos, targetId, i));
++			}
++		}
++		return;
++	}
++
+ 	/* When an event occurs the message [...] is first sent to a
+ 	 * primary event handler: [... if exists it is executed] and the
+ 	 * event is passed on to other objects unless you explicitly stop
+@@ -891,8 +906,13 @@ Datum Score::createScriptInstance(BehaviorElement *behavior) {
+ 		return Datum();
+ 	}
+ 
++	// The script may define its own "on new me" handler (e.g. Mulle Meck's
++	// DrawCar), which LC::call only queues: run it before reading the result.
++	int newFrame = g_lingo->_state->callstack.size();
+ 	g_lingo->push(scr);
+ 	LC::call("new", 1, true);
++	if ((int)g_lingo->_state->callstack.size() > newFrame)
++		g_lingo->execute(newFrame);
+ 	Datum instance = g_lingo->pop();
+ 
+ 	if (instance.type != OBJECT) {
+@@ -906,16 +926,19 @@ Datum Score::createScriptInstance(BehaviorElement *behavior) {
+ 	if (behavior->initializerIndex == 0)
+ 		return instance;
+ 
+-	// Evaluate the params
++	// Evaluate the params. This may run while another handler is executing
++	// (e.g. sendSprite right after a go), so only run the frames we push.
++	uint stackSize = g_lingo->_state->stack.size();
++	int callFrame = g_lingo->_state->callstack.size();
+ 	g_lingo->push(behavior->initializerParams);
+ 	LB::b_value(1);
+-	g_lingo->execute();
++	g_lingo->execute(callFrame);
+ 
+ 	if (debugChannelSet(5, kDebugLingoExec)) {
+ 		g_lingo->printStack("  Parsed behavior parameters: ", 0);
+ 	}
+ 
+-	if (g_lingo->_state->stack.size() == 0) {
++	if (g_lingo->_state->stack.size() <= stackSize) {
+ 		warning("Score::createScriptInstance(): Could not evaluate initializer params '%s' for behavior %s",
+ 			behavior->initializerParams.c_str(), behavior->toString().c_str());
+ 		return instance;
+@@ -960,6 +983,7 @@ void Score::createScriptInstances(int frameNum) {
+ 		}
+ 	}
+ 
++	Common::Array<int> newChannels;
+ 	for (int i = 0; i < (int)_channels.size(); i++) {
+ 		Channel *channel = _channels[i];
+ 		Sprite *sprite = channel->_sprite;
+@@ -992,11 +1016,16 @@ void Score::createScriptInstances(int frameNum) {
+ 			channel->_scriptInstanceList.push_back(instance);
+ 		}
+ 
+-		bool prevDis = _disableGoPlayUpdateStage;
+-		_disableGoPlayUpdateStage = true;
+-		_movie->processEvent(kEventBeginSprite, i);
+-		_disableGoPlayUpdateStage = prevDis;
++		newChannels.push_back(i);
+ 	}
++
++	// Director instantiates every behavior in the frame before sending any
++	// beginSprite, so behaviors can sendSprite to higher channels during it.
++	bool prevDis = _disableGoPlayUpdateStage;
++	_disableGoPlayUpdateStage = true;
++	for (uint k = 0; k < newChannels.size(); k++)
++		_movie->processEvent(kEventBeginSprite, newChannels[k]);
++	_disableGoPlayUpdateStage = prevDis;
+ }
+ 
+ } // End of namespace Director
+diff --git a/engines/director/lingo/lingo-funcs.cpp b/engines/director/lingo/lingo-funcs.cpp
+index 563125e..e9c23cb 100644
+--- a/engines/director/lingo/lingo-funcs.cpp
++++ b/engines/director/lingo/lingo-funcs.cpp
+@@ -113,7 +113,10 @@ void Lingo::func_goto(Datum &frame, Datum &movie, bool calledfromgo) {
+ 
+ 	// Since the frames are not going to be consecutive, we might run into
+ 	// an endge case, so better kill behaviors proactively.
+-	score->killScriptInstances(score->getNextFrame());
++	// Not for D6+: the handler calling go may belong to one of these behaviors
++	// (Mulle Meck's name screen), and Score::update() kills them before the jump.
++	if (g_director->getVersion() < 600)
++		score->killScriptInstances(score->getNextFrame());
+ }
+ 
+ void Lingo::func_gotoloop() {
+diff --git a/engines/director/lingo/lingo-the.cpp b/engines/director/lingo/lingo-the.cpp
+index 1ec9162..b43b942 100644
+--- a/engines/director/lingo/lingo-the.cpp
++++ b/engines/director/lingo/lingo-the.cpp
+@@ -1611,6 +1611,24 @@ int Lingo::getMenuItemsNum(Datum &d) {
+ 	return g_director->_wm->getMenu()->numberOfMenuItems(menu);
+ }
+ 
++// D6+: "the foo of sprite n" falls back to the first of the sprite's behaviors
++// that has a property foo (Mulle Meck reads e.g. the dragging of sprite n).
++static AbstractObject *findSpriteBehaviorWithProp(const Datum &sprite, const Common::String &propName) {
++	if (g_director->getVersion() < 600)
++		return nullptr;
++	Movie *movie = g_director->getCurrentMovie();
++	Score *score = movie ? movie->getScore() : nullptr;
++	Channel *channel = score ? score->getChannelById(sprite.u.i) : nullptr;
++	if (!channel)
++		return nullptr;
++	for (uint i = 0; i < channel->_scriptInstanceList.size(); i++) {
++		const Datum &inst = channel->_scriptInstanceList[i];
++		if (inst.type == OBJECT && inst.u.obj->hasProp(propName))
++			return inst.u.obj;
++	}
++	return nullptr;
++}
++
+ Datum Lingo::getTheSprite(Datum &id1, int field) {
+ 	Datum d;
+ 	int id = 0;
+@@ -1764,9 +1782,9 @@ Datum Lingo::getTheSprite(Datum &id1, int field) {
+ 		d = (int)(sprite->_colorcode & 0x7);
+ 		break;
+ 	case kTheScriptInstanceList:
+-		warning("STUB: Getting the scriptInstanceList");
+-		d.type = PARRAY;
+-		d.u.parr = new PArray;
++		d.type = ARRAY;
++		d.u.farr = new FArray;
++		d.u.farr->arr = channel->_scriptInstanceList;
+ 		break;
+ 	case kTheScriptNum:
+ 		if (g_director->getVersion() >= 600) {
+@@ -2091,7 +2109,11 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
+ 
+ 		break;
+ 	case kTheScriptInstanceList:
+-		warning("STUB: Setting the scriptInstanceList");
++		if (d.type == ARRAY) {
++			channel->_scriptInstanceList = d.u.farr->arr;
++		} else {
++			warning("Lingo::setTheSprite(): scriptInstanceList expects a list, got %s", d.type2str());
++		}
+ 		break;
+ 	case kTheStartTime:
+ 		channel->_startTime = d.asInt();
+@@ -2643,6 +2665,9 @@ void Lingo::getObjectProp(Datum &obj, Common::String &propName) {
+ 		Common::String key = Common::String::format("%d%s", kTheSprite, propName.c_str());
+ 		if (_theEntityFields.contains(key)) {
+ 			d = getTheSprite(obj, _theEntityFields[key]->field);
++		} else if (AbstractObject *inst = findSpriteBehaviorWithProp(obj, propName)) {
++			// D6: unknown sprite properties come from its behaviors
++			d = inst->getProp(propName);
+ 		}
+ 		g_lingo->push(d);
+ 		return;
+@@ -2768,6 +2793,8 @@ void Lingo::setObjectProp(Datum &obj, Common::String &propName, Datum &val) {
+ 		Common::String key = Common::String::format("%d%s", kTheSprite, propName.c_str());
+ 		if (_theEntityFields.contains(key)) {
+ 			setTheSprite(obj, _theEntityFields[key]->field, val);
++		} else if (AbstractObject *inst = findSpriteBehaviorWithProp(obj, propName)) {
++			inst->setProp(propName, val);
+ 		}
+ 	} else {
+ 		g_lingo->lingoError("Lingo::setObjectProp: Invalid object: %s", obj.asString(true).c_str());
+diff --git a/engines/director/lingo/lingo.cpp b/engines/director/lingo/lingo.cpp
+index 8da4c66..eab8e04 100644
+--- a/engines/director/lingo/lingo.cpp
++++ b/engines/director/lingo/lingo.cpp
+@@ -631,7 +631,10 @@ bool Lingo::execute(int targetFrame) {
+ 	uint localCounter = 0;
+ 	uint lastUpdate = 0;
+ 
+-	while (!_abort && !_freezeState && !_playDone && _state->script && (*_state->script)[_state->pc] != STOP) {
++	// A nested execute() (targetFrame != -1, e.g. from sendSprite) runs its
++	// handlers to the end even after a go; the outermost execute() freezes.
++	bool nested = targetFrame != -1;
++	while (!_abort && (!_freezeState || nested) && !_playDone && _state->script && (*_state->script)[_state->pc] != STOP) {
+ 		if (targetFrame != -1 && (int)_state->callstack.size() == targetFrame)
+ 			break;
+ 
+@@ -732,6 +735,9 @@ bool Lingo::execute(int targetFrame) {
+ 		}
+ 	}
+ 
++	if (nested && (_freezeState || _freezePlay) && !_abort)
++		return true;
++
+ 	bool result = !_freezeState;
+ 	if (_freezePlay) {
+ 		debugC(5, kDebugLingoExec, "Lingo::execute(): Called play, pausing execution to the play buffer");
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index a7641db..920a981 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -397,6 +397,21 @@ void Score::setCurrentFrame(uint16 frameId) {
+ 	_nextFrame = frameId;
+ }
+ 
++// Load the frame requested by a pending "go" right away, so that Lingo
++// running in the same handler sees its sprites and behaviors. The jump stays
++// queued (now to the current frame), so the normal update just re-enters it.
++bool Score::applyPendingJump() {
++	uint16 target = _nextFrame;
++	if (!target || target == _curFrameNumber || target >= getFramesNum())
++		return false;
++
++	bool skipFrameAdvance = _window->_skipFrameAdvance;
++	updateCurrentFrame();
++	_nextFrame = target;
++	_window->_skipFrameAdvance = skipFrameAdvance;
++	return true;
++}
++
+ bool Score::isWaitingForNextFrame() {
+ 	bool keepWaiting = false;
+ 	debugC(8, kDebugEvents, "Score::isWaitingForNextFrame(): nextFrameTime: %d, time: %d, sound: %d, click: %d, video: %d", _nextFrameTime, g_system->getMillis(false), _waitForChannel, _waitForClick, _waitForVideoChannel);
+@@ -671,7 +686,10 @@ void Score::update() {
+ 		// exitFrame is not called in this case.
+ 		if (_haveInteractivity && !_window->_skipFrameAdvance && !_exitFrameCalled) {
+ 			// Exit the current frame. This can include scopeless ScoreScripts.
+-			_movie->processEvent(kEventExitFrame);
++			if (_version >= kFileVer600)
++				_movie->broadcastEvent(kEventExitFrame);
++			else
++				_movie->processEvent(kEventExitFrame);
+ 			_exitFrameCalled = true;
+ 			_skipIdle = false;
+ 		}
+@@ -827,7 +845,10 @@ void Score::update() {
+ 	if (!_window->_playbackPaused) {
+ 		_exitFrameCalled = false;
+ 		if (_version >= kFileVer400) {
+-			_movie->processEvent(kEventEnterFrame);
++			if (_version >= kFileVer600)
++				_movie->broadcastEvent(kEventEnterFrame);
++			else
++				_movie->processEvent(kEventEnterFrame);
+ 		}
+ 	}
+ 	if (_window->frozenLingoStateCount() > count)
+diff --git a/engines/director/score.h b/engines/director/score.h
+index 413ac7e..77f2a17 100644
+--- a/engines/director/score.h
++++ b/engines/director/score.h
+@@ -100,6 +100,7 @@ public:
+ 	uint16 getCurrentFrameNum() { return _curFrameNumber; }
+ 	int getNextFrame() { return _nextFrame; }
+ 	uint16 getFramesNum() { return _numFrames; }
++	bool applyPendingJump();
+ 
+ 	void setPuppetTempo(int16 puppetTempo);
+ 
+diff --git a/engines/director/sprite.cpp b/engines/director/sprite.cpp
+index cd001b8..1571b28 100644
+--- a/engines/director/sprite.cpp
++++ b/engines/director/sprite.cpp
+@@ -361,9 +361,22 @@ bool Sprite::respondsToMouse() {
+ 		return ((MovieCastMember *)_cast)->_enableScripts;
+ 
+ 	// TODO: Check if we need to check against individual events like below
++	// Only behaviors with mouse handlers make a sprite a mouse target.
++	// Otherwise e.g. Mulle Meck's custom cursor sprite, which sits under the
++	// pointer, would swallow every mouseEnter meant for the sprites below it.
+ 	if (g_director->getVersion() >= 600) {
+-		if (_behaviors.size() > 0)
+-			return true;
++		static const LEvent mouseEvents[] = {
++			kEventMouseDown, kEventMouseUp, kEventMouseEnter, kEventMouseLeave,
++			kEventMouseWithin, kEventMouseUpOutSide, kEventRightMouseDown, kEventRightMouseUp
++		};
++		for (uint i = 0; i < _behaviors.size(); i++) {
++			ScriptContext *behavior = _movie->getScriptContext(kScoreScript, _behaviors[i].memberID);
++			if (!behavior)
++				continue;
++			for (uint j = 0; j < ARRAYSIZE(mouseEvents); j++)
++				if (behavior->_eventHandlers.contains(mouseEvents[j]))
++					return true;
++		}
+ 	}
+ 
+ 	ScriptContext *spriteScript = _movie->getScriptContext(kScoreScript, _scriptId);
+-- 
+2.54.0 (Apple Git-157)
+

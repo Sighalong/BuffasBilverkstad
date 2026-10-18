@@ -1,0 +1,41 @@
+From 601c752d7475460f5abf419ac27e789242d5e264 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:21:32 +0200
+Subject: [PATCH] diag: log which cursor renderCursor applies
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index a70d4e1..f9296c6 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -1501,6 +1501,7 @@ void Score::renderCursor(Common::Point pos, bool forceUpdate) {
+ 
+ 	if (_waitForClick) {
+ 		_vm->setCursor(_waitForClickCursor ? kCursorMouseDown : kCursorMouseUp);
++		MDIAG(3, "cursor", "waitForClick cursor");
+ 		return;
+ 	}
+ 
+@@ -1526,6 +1527,7 @@ void Score::renderCursor(Common::Point pos, bool forceUpdate) {
+ //			if (_vm->getPlatform() == Common::kPlatformWindows && _channels[spriteId]->_cursor._cursorType == Graphics::kMacCursorCustom)
+ //				_vm->_wm->replaceCursor(_channels[spriteId]->_cursor._cursorType, _vm->_winCursor[_channels[spriteId]->_cursor._cursorResId]);
+ 			_vm->_wm->replaceCursor(_channels[spriteId]->_cursor._cursorType, &_channels[spriteId]->_cursor);
++			MDIAG(2, "cursor", "apply sprite %d cursor type %d", spriteId, (int)_channels[spriteId]->_cursor._cursorType);
+ 			_currentCursor = _channels[spriteId]->_cursor.getRef();
+ 			return;
+ 		}
+@@ -1536,6 +1538,7 @@ void Score::renderCursor(Common::Point pos, bool forceUpdate) {
+ 
+ 	_vm->_wm->replaceCursor(_defaultCursor._cursorType, &_defaultCursor);
+ 	_currentCursor = _defaultCursor.getRef();
++	MDIAG(2, "cursor", "apply default cursor type %d (%s)", (int)_defaultCursor._cursorType, _movie->getMacName().c_str());
+ }
+ 
+ void Score::updateWidgets(bool hasVideoPlayback) {
+-- 
+2.54.0 (Apple Git-157)
+

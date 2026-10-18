@@ -1,0 +1,105 @@
+From b9748d0856edf845f1f0ef751755556b8c602760 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 09:20:30 +0200
+Subject: [PATCH] director: recreate D6 behaviors made for another span of the
+ channel
+
+When a movie starts at a label, Lingo during load can instantiate
+behaviors from frame 1's sprites. Those were kept for the label's span:
+Mulle Meck 02 re-entry at pile j6 put Mulle's head at the j1 position
+and gave doors/junk parts j1 parameters. Also extends the 02 sprite diag
+with registration points and the score's own sprite.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/channel.h              |  3 +++
+ engines/director/lingo/lingo-events.cpp | 22 ++++++++++++++++++++++
+ engines/director/score.cpp              | 11 +++++++++--
+ 3 files changed, 34 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/channel.h b/engines/director/channel.h
+index a551382..f05a2b4 100644
+--- a/engines/director/channel.h
++++ b/engines/director/channel.h
+@@ -133,6 +133,9 @@ public:
+ 	int _startFrame;
+ 	int _endFrame;
+ 	Common::Array<Datum> _scriptInstanceList;
++	// span the instances above were made for (Mulle Meck 02: made on frame 1
++	// during load, then the movie starts at a label in another span)
++	int _instStartFrame = -1, _instEndFrame = -1;
+ 
+ private:
+ 	Graphics::ManagedSurface *getSurface();
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index 5cf05e5..a0d8969 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -952,6 +952,7 @@ void Score::killScriptInstances(int frameNum) {
+ 					i + 1, frameNum, channel->_startFrame, channel->_endFrame);
+ 
+ 			channel->_startFrame = channel->_endFrame = -1;
++			channel->_instStartFrame = channel->_instEndFrame = -1;
+ 		}
+ 	}
+ }
+@@ -1071,6 +1072,25 @@ void Score::createScriptInstances(int frameNum) {
+ 	for (int i = 0; i < (int)_channels.size(); i++) {
+ 		Channel *channel = _channels[i];
+ 
++		// Instances made for another span of this channel (e.g. on frame 1 while
++		// the movie loaded, before it started at a label) don't belong here.
++		if (channel->_scriptInstanceList.size() != 0 && channel->_instStartFrame != -1 &&
++				i < (int)_currentFrame->_sprites.size() && _currentFrame->_sprites[i] &&
++				frameNum >= _currentFrame->_sprites[i]->_spriteInfo.startFrame &&
++				frameNum <= _currentFrame->_sprites[i]->_spriteInfo.endFrame &&
++				(channel->_instStartFrame != (int)_currentFrame->_sprites[i]->_spriteInfo.startFrame ||
++				 channel->_instEndFrame != (int)_currentFrame->_sprites[i]->_spriteInfo.endFrame)) {
++			MDIAG(1, "sprite", "ch %d: drop behaviors of span %d-%d at frame %d (span %d-%d)", i, channel->_instStartFrame,
++				channel->_instEndFrame, frameNum, _currentFrame->_sprites[i]->_spriteInfo.startFrame, _currentFrame->_sprites[i]->_spriteInfo.endFrame);
++			bool prevDis = _disableGoPlayUpdateStage;
++			_disableGoPlayUpdateStage = true;
++			_movie->processEvent(kEventEndSprite, i);
++			_disableGoPlayUpdateStage = prevDis;
++			channel->_scriptInstanceList.clear();
++			channel->_instStartFrame = channel->_instEndFrame = -1;
++			channel->_startFrame = channel->_endFrame = -1; // makes the code below reload the span
++		}
++
+ 		// A new sprite span that looks identical to the old one (e.g. Mulle Meck's
+ 		// junk piles, all "Dummy" until Lingo sets them) isn't reloaded by setClean,
+ 		// so pick up its range and behaviors here and drop the old span's overrides.
+@@ -1122,6 +1142,8 @@ void Score::createScriptInstances(int frameNum) {
+ 			instance.u.obj->setProp("spriteNum", Datum(i), true);
+ 			channel->_scriptInstanceList.push_back(instance);
+ 		}
++		channel->_instStartFrame = channel->_startFrame;
++		channel->_instEndFrame = channel->_endFrame;
+ 
+ 		newChannels.push_back(i);
+ 	}
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index 4e2ac95..9b9f38f 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -402,8 +402,15 @@ void Score::step() {
+ 				Common::Rect bb = ch->getBbox();
+ 				if (!(id >= 100 && id <= 105) && !bb.intersects(headArea))
+ 					continue;
+-				desc += Common::String::format(" %d:%s@%d,%d[%d,%d-%d,%d]ink%d%s%s", id, ch->_sprite->_castId.asString().c_str(),
+-					ch->getPosition().x, ch->getPosition().y, bb.left, bb.top, bb.right, bb.bottom, ch->_sprite->_ink,
++				Common::Point reg;
++				if (CastMember *m = _movie->getCastMember(ch->_sprite->_castId))
++					reg = m->getRegistrationOffset();
++				Common::String score;
++				if (id < _currentFrame->_sprites.size() && _currentFrame->_sprites[id])
++					score = Common::String::format("{score %s@%d,%d}", _currentFrame->_sprites[id]->_castId.asString().c_str(),
++						_currentFrame->_sprites[id]->_startPoint.x, _currentFrame->_sprites[id]->_startPoint.y);
++				desc += Common::String::format(" %d:%s@%d,%d[%d,%d-%d,%d]reg%d,%d%s ink%d%s%s", id, ch->_sprite->_castId.asString().c_str(),
++					ch->getPosition().x, ch->getPosition().y, bb.left, bb.top, bb.right, bb.bottom, reg.x, reg.y, score.c_str(), ch->_sprite->_ink,
+ 					ch->_sprite->_puppet ? "P" : "", ch->_visible ? "" : "hidden");
+ 			}
+ 			static Common::String lastJunk;
+-- 
+2.54.0 (Apple Git-157)
+

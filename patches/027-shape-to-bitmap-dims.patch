@@ -1,0 +1,44 @@
+From 4e26364834fad4ac33aae9dc80179ba4be05c363 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:46:39 +0200
+Subject: [PATCH] 0024 setting a member on a stretched shape sprite takes the
+ new member's size (white full-screen shape over the driving map in 05.DXR)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/channel.cpp | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/channel.cpp b/engines/director/channel.cpp
+index 8f53c3d..d777536 100644
+--- a/engines/director/channel.cpp
++++ b/engines/director/channel.cpp
+@@ -480,7 +480,24 @@ void Channel::setCast(CastMemberID memberID) {
+ 	// dimensions. In puppet mode Lingo can first change the
+ 	// dimensions of the sprite, -then- change the cast ID, and expect
+ 	// those custom dimensions to stick around.
+-	_sprite->setCast(memberID, !_sprite->_stretch);
++	// A score sprite can carry the stretch flag while still showing its member at
++	// native size; only keep the dimensions if they really differ from the old
++	// member's (Mulle Meck 05.DXR swaps a full-screen white shape for an empty "Dummy"
++	// on channel 118, which otherwise became a white full-screen rectangle).
++	// Shapes are always sized by the score, so their size never carries over.
++	bool keepDims = _sprite->_stretch;
++	if (keepDims && _sprite->_cast) {
++		if (_sprite->_cast->_type == kCastShape && memberID != _sprite->_castId) {
++			CastMember *next = _sprite->_movie->getCastMember(memberID);
++			if (next && next->_type != kCastShape)
++				keepDims = false;
++		} else if (_sprite->_cast->_type == kCastBitmap) {
++			Common::Rect oldDims = _sprite->_cast->getInitialRect();
++			if (oldDims.width() == _sprite->_width && oldDims.height() == _sprite->_height)
++				keepDims = false;
++		}
++	}
++	_sprite->setCast(memberID, !keepDims);
+ 
+ 	// Duplicate of the special cases in setClean.
+ 	// Maybe it makes sense to force setClean to use setCast instead?
+-- 
+2.54.0 (Apple Git-157)
+

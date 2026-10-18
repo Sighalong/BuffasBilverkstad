@@ -1,0 +1,83 @@
+From 3706870d57dafaf09f9acadf5d6c4fadcc8a53d9 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:56:32 +0200
+Subject: [PATCH] 0032 scrollTop of text member scrolls the widget (reapplied
+ when the widget is rebuilt)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/text.cpp | 21 +++++++++++++++++++--
+ engines/director/castmember/text.h   |  1 +
+ 2 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index 2910291..f1d5d34 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -38,6 +38,8 @@
+ 
+ namespace Director {
+ 
++static const int kScrollStep = 12; // MacText kConScrollStep
++
+ TextCastMember::TextCastMember(Cast *cast, uint16 castId, Common::SeekableReadStreamEndian &stream, uint16 version, uint8 flags1, bool asButton)
+ 		: CastMember(cast, castId, stream) {
+ 	_type = kCastText;
+@@ -379,6 +381,10 @@ Graphics::MacWidget *TextCastMember::createWidget(Common::Rect &bbox, Channel *c
+ 		break;
+ 	}
+ 
++	// The widget is rebuilt whenever the text changes; restore the Lingo scrollTop
++	if (type == kCastText && _scroll > 0)
++		applyScroll((Graphics::MacText *)widget);
++
+ 	delete macFont;
+ 	return widget;
+ }
+@@ -619,9 +625,17 @@ void TextCastMember::setTextStyle(const Common::String &textStyle) {
+ 	_modified = true;
+ }
+ 
++// MacText only scrolls in steps of its console scroll step (12px), clamping at the ends,
++// so go to the top first and then step down to the requested offset.
++void TextCastMember::applyScroll(Graphics::MacText *target) {
++	target->scroll(-0x10000);
++	target->scroll(_scroll / kScrollStep);
++}
++
+ void TextCastMember::scrollByLine(int count) {
+ 	Graphics::MacText *target = getWidget();
+ 	target->scroll(count);
++	_scroll = MAX(0, _scroll + count * kScrollStep);
+ }
+ 
+ void TextCastMember::setTextStyle(const Common::String &textStyle, int start, int end) {
+@@ -923,8 +937,11 @@ void TextCastMember::setField(int field, const Datum &d) {
+ 		warning("BUILDBOT: TextCastMember::setField(): Attempt to set read-only field %s of cast %d", g_lingo->entity2str(field), _castId);
+ 		return;
+ 	case kTheScrollTop:
+-		_scroll = d.asInt();
+-		setModified(true);
++		_scroll = MAX(0, d.asInt());
++		if (Graphics::MacText *target = getWidget())
++			applyScroll(target);
++		else
++			setModified(true);
+ 		return;
+ 	case kTheWordWrap:
+ 		warning("STUB: TextCastMember::setField(): wordWrap not implemented");
+diff --git a/engines/director/castmember/text.h b/engines/director/castmember/text.h
+index 23edb0c..62e7f65 100644
+--- a/engines/director/castmember/text.h
++++ b/engines/director/castmember/text.h
+@@ -88,6 +88,7 @@ public:
+ 	void setTextStyle(const Common::String &textStyle, int start, int end);
+ 
+ 	void scrollByLine(int count);
++	void applyScroll(Graphics::MacText *target);
+ 
+ 	Common::String formatInfo() override;
+ 
+-- 
+2.54.0 (Apple Git-157)
+

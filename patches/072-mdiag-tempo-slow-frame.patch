@@ -1,0 +1,95 @@
+From f08746d790326e746f1ce01de6657f3be5ed78b1 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 08:41:52 +0200
+Subject: [PATCH] diag: log D6 tempo changes and frames slower than 100 ms by
+ stage
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 24 ++++++++++++++++++++++--
+ 1 file changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index 5315974..c4b7f00 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -641,8 +641,11 @@ void Score::updateNextFrameTime() {
+ 			}
+ 		} else { // D6+
+ 			int16 tempoCuePoint = _currentFrame->_mainChannels.tempoCuePoint;
+-			if (tempo != 246 || tempoCuePoint <= 0)
+-				MDIAG(2, "frame", "D6 frame %d tempo %d cue %d", getCurrentFrameNum(), tempo, tempoCuePoint);
++			static int lastDiagTempo = -1, lastDiagCue = -1;
++			if (tempo != 246 || tempoCuePoint <= 0 || tempo != lastDiagTempo || tempoCuePoint != lastDiagCue)
++				MDIAG(2, "frame", "D6 frame %d tempo %d cue %d (score %d puppet %d)", getCurrentFrameNum(), tempo, tempoCuePoint, _currentFrame->_mainChannels.tempo, _puppetTempo);
++			lastDiagTempo = tempo;
++			lastDiagCue = tempoCuePoint;
+ 
+ 			if (tempo == 255) {
+ 				// Wait for sound channel 1
+@@ -835,7 +838,10 @@ void Score::update() {
+ 			bool prevDis = _disableGoPlayUpdateStage;
+ 			_disableGoPlayUpdateStage = true;
+ 
++			uint32 tp0 = g_system->getMillis(false);
+ 			_movie->broadcastEvent(kEventPrepareFrame);
++			if (g_system->getMillis(false) - tp0 > 100)
++				MDIAG(1, "render", "slow prepareFrame %d %u ms", _curFrameNumber, g_system->getMillis(false) - tp0);
+ 
+ 			_disableGoPlayUpdateStage = prevDis;
+ 		}
+@@ -889,8 +895,11 @@ void Score::update() {
+ 	if (!_window->_playbackPaused) {
+ 		_exitFrameCalled = false;
+ 		if (_version >= kFileVer400) {
++			uint32 te0 = g_system->getMillis(false);
+ 			if (_version >= kFileVer600)
+ 				_movie->broadcastEvent(kEventEnterFrame);
++			if (g_system->getMillis(false) - te0 > 100)
++				MDIAG(1, "render", "slow enterFrame %d %u ms", _curFrameNumber, g_system->getMillis(false) - te0);
+ 			else
+ 				_movie->processEvent(kEventEnterFrame);
+ 		}
+@@ -927,6 +936,7 @@ void Score::renderFrame(uint16 frameId, RenderMode mode, bool sound1Changed, boo
+ 	}
+ 
+ 	uint32 start = g_system->getMillis(false);
++	uint32 tTrans = 0, tPre = 0, tDraw = 0;
+ 	// Force cursor update if a new movie's started.
+ 	if (_window->_newMovieStarted)
+ 		renderCursor(_movie->getWindow()->getMousePos(), true);
+@@ -950,7 +960,9 @@ void Score::renderFrame(uint16 frameId, RenderMode mode, bool sound1Changed, boo
+ 		incrementFilmLoops();
+ 		_window->render();
+ 	} else if (!renderTransition(frameId, mode)) {
++		tTrans = g_system->getMillis(false);
+ 		bool skip = renderPrePaletteCycle(mode);
++		tPre = g_system->getMillis(false);
+ 		if (soundAfterFade) {
+ 			playSoundChannel(false, sound1Changed, sound2Changed);
+ 			soundAfterFade = false;
+@@ -959,6 +971,7 @@ void Score::renderFrame(uint16 frameId, RenderMode mode, bool sound1Changed, boo
+ 		updateSprites(mode);
+ 		incrementFilmLoops();
+ 		_window->render();
++		tDraw = g_system->getMillis(false);
+ 		if (!skip)
+ 			renderPaletteCycle(mode);
+ 	}
+@@ -974,6 +987,13 @@ void Score::renderFrame(uint16 frameId, RenderMode mode, bool sound1Changed, boo
+ 	}
+ 	uint32 end = g_system->getMillis(false);
+ 	debugC(5, kDebugEvents, "Score::renderFrame() finished in %d millis", end - start);
++	if (end - start > 100) {
++		const PaletteInfo &p = _currentFrame->_mainChannels.palette;
++		MDIAG(1, "render", "slow frame %d %u ms: trans %u prePal %u draw %u palCycle %u (pal %s normal %d black %d white %d cycle %d overTime %d speed %d frames %d trans %d)",
++			frameId, end - start, tTrans ? tTrans - start : end - start, tPre ? tPre - tTrans : 0, tDraw ? tDraw - tPre : 0, tDraw ? end - tDraw : 0,
++			p.paletteId.asString().c_str(), p.normal, p.fadeToBlack, p.fadeToWhite, p.colorCycling, p.overTime, p.speed, p.frameCount,
++			_currentFrame->_mainChannels.transType);
++	}
+ }
+ 
+ bool Score::renderTransition(uint16 frameId, RenderMode mode) {
+-- 
+2.54.0 (Apple Git-157)
+

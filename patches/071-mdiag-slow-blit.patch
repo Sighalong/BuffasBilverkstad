@@ -1,0 +1,47 @@
+From 1b8335e1ab737144208a2d7412ddee48b6539996 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 21:21:10 +0200
+Subject: [PATCH] diag: log sprite blits slower than 40 ms
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/window.cpp | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/engines/director/window.cpp b/engines/director/window.cpp
+index c81e965..ef4b602 100644
+--- a/engines/director/window.cpp
++++ b/engines/director/window.cpp
+@@ -34,6 +34,7 @@
+ #include "director/lingo/lingo-profiler.h"
+ #include "director/movie.h"
+ #include "director/window.h"
++#include "director/mullediag.h"
+ #include "director/score.h"
+ #include "director/channel.h"
+ #include "director/sound.h"
+@@ -454,6 +455,7 @@ void Window::inkBlitFrom(Channel *channel, Common::Rect destRect, Graphics::Mana
+ 
+ 	CastType castType = channel->_sprite->_cast ? channel->_sprite->_cast->_type : kCastTypeNull;
+ 
++	uint32 slowStart = g_system->getMillis();
+ 	uint32 renderStartTime = 0;
+ 	if (debugChannelSet(8, kDebugImages)) {
+ 		debugC(8, kDebugImages, "Window::inkBlitFrom(): updating %dx%d @ %d,%d -> %dx%d @ %d,%d, type: %s, cast: %s, ink: %d",
+@@ -479,6 +481,13 @@ void Window::inkBlitFrom(Channel *channel, Common::Rect destRect, Graphics::Mana
+ 	if (debugChannelSet(8, kDebugImages)) {
+ 		debugC(8, kDebugImages, "Window::inkBlitFrom(): Draw finished in %d ms",  g_system->getMillis() - renderStartTime);
+ 	}
++	// intro stall at 10.DXR frames 55-64: which sprite is slow to draw
++	uint32 took = g_system->getMillis() - slowStart;
++	if (took > 40)
++		MDIAG(1, "render", "slow blit %u ms ch %d %s ink %d %dx%d -> %dx%d blend %d stretch %d shape %d mask %d",
++			took, channel->_priority, channel->_sprite->_castId.asString().c_str(), channel->_sprite->_ink,
++			srcRect.width(), srcRect.height(), destRect.width(), destRect.height(), channel->_sprite->_blendAmount,
++			channel->_sprite->_stretch, pd.ms ? 1 : 0, channel->getMask() ? 1 : 0);
+ }
+ 
+ Common::Point Window::getMousePos() {
+-- 
+2.54.0 (Apple Git-157)
+

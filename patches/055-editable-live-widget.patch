@@ -1,0 +1,74 @@
+From 1f1de60525206928d638f3db5598b9892b1e5e87 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 19:09:36 +0200
+Subject: [PATCH] director: apply editable/editableText to a text field already
+ on screen
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/text.cpp | 14 ++++++++++++++
+ engines/director/castmember/text.h   |  1 +
+ engines/director/lingo/lingo-the.cpp |  3 +++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index 19bca59..8b144fa 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -650,6 +650,18 @@ void TextCastMember::setTextStyle(const Common::String &textStyle, int start, in
+ 	_modified = true;
+ }
+ 
++void TextCastMember::applyEditable(Graphics::MacWidget *widget, bool editable) {
++	if (_textType == kTextTypeScrolling)
++		return;
++	((Graphics::MacText *)widget)->setEditable(editable);
++	// setEditable doesn't take focus, so hand the keyboard to the field
++	if (editable) {
++		Graphics::MacWidget *activeWidget = g_director->_wm->getActiveWidget();
++		if (activeWidget == nullptr || !activeWidget->isEditable())
++			g_director->_wm->setActiveWidget(widget);
++	}
++}
++
+ void TextCastMember::updateFromWidget(Graphics::MacWidget *widget, bool spriteEditable) {
+ 	if (widget && (spriteEditable || _editable)) {
+ 		Common::String content = ((Graphics::MacText *)widget)->getEditedString();
+@@ -932,6 +944,8 @@ void TextCastMember::setField(int field, const Datum &d) {
+ 		return;
+ 	case kTheEditable:
+ 		_editable = d.asInt();
++		if (Graphics::MacText *target = getWidget())
++			applyEditable(target, _editable);
+ 		setModified(true);
+ 		return;
+ 	case kTheLineCount:
+diff --git a/engines/director/castmember/text.h b/engines/director/castmember/text.h
+index 62e7f65..a719977 100644
+--- a/engines/director/castmember/text.h
++++ b/engines/director/castmember/text.h
+@@ -47,6 +47,7 @@ public:
+ 
+ 	bool isEditable() override { return _editable; }
+ 	void setEditable(bool editable) override { _editable = editable; }
++	void applyEditable(Graphics::MacWidget *widget, bool editable);
+ 	void updateFromWidget(Graphics::MacWidget *widget, bool spriteEditable) override;
+ 	Graphics::TextAlign getAlignment();
+ 
+diff --git a/engines/director/lingo/lingo-the.cpp b/engines/director/lingo/lingo-the.cpp
+index 9f13b09..e0cbcb3 100644
+--- a/engines/director/lingo/lingo-the.cpp
++++ b/engines/director/lingo/lingo-the.cpp
+@@ -1986,6 +1986,9 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
+ 		break;
+ 	case kTheEditableText:
+ 		channel->_sprite->_editable = d.asInt();
++		// The widget is already on screen (Mulle Meck 06.DXR car name): update it too
++		if (channel->_widget && channel->_sprite->_cast && channel->_sprite->_cast->_type == kCastText)
++			((TextCastMember *)channel->_sprite->_cast)->applyEditable(channel->_widget, channel->_sprite->_editable);
+ 		break;
+ 	case kTheFlipH: // D7
+ 		sprite->_thickness = (sprite->_thickness & ~kTFlipH) | ((d.asInt() ? kTFlipH : 0));
+-- 
+2.54.0 (Apple Git-157)
+

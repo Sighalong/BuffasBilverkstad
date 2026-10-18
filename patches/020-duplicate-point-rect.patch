@@ -1,0 +1,45 @@
+From 4c871cf3c470e5cb5fd34ed290226abd689ad312 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:23:47 +0200
+Subject: [PATCH] 0020 duplicate() and Datum::clone handle POINT/RECT (driving
+ crash in 05.DXR)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-builtins.cpp | 4 +++-
+ engines/director/lingo/lingo.cpp          | 4 +++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 6a4c2a1..1d9ad88 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -1047,7 +1047,9 @@ void LB::b_deleteProp(int nargs) {
+ 
+ void LB::b_duplicateList(int nargs) {
+ 	Datum list = g_lingo->pop();
+-	TYPECHECK2(list, ARRAY, PARRAY);
++	// Director also duplicates points and rects (Mulle Meck's driving, 05.DXR)
++	if (list.type != POINT && list.type != RECT)
++		TYPECHECK2(list, ARRAY, PARRAY);
+ 	g_lingo->push(list.clone());
+ }
+ 
+diff --git a/engines/director/lingo/lingo.cpp b/engines/director/lingo/lingo.cpp
+index eab8e04..f45c1a1 100644
+--- a/engines/director/lingo/lingo.cpp
++++ b/engines/director/lingo/lingo.cpp
+@@ -1350,7 +1350,9 @@ Datum Datum::clone() const {
+ 	Datum result;
+ 	switch (type) {
+ 	case ARRAY:
+-		result.type = ARRAY;
++	case POINT:
++	case RECT:
++		result.type = type;
+ 		result.u.farr = new FArray;
+ 		for (auto &it : u.farr->arr) {
+ 			result.u.farr->arr.push_back(it.clone());
+-- 
+2.54.0 (Apple Git-157)
+

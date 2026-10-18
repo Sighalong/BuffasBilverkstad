@@ -1,0 +1,81 @@
+From 8eee7690565f6909b1a6af46cd1646b682be9815 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:31:36 +0200
+Subject: [PATCH] diag: MULLEDIAG warnings (sound play/stop, cursor(), D6
+ tempos, LBSTART frames) - temporary, not a fix
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-funcs.cpp | 1 +
+ engines/director/score.cpp             | 6 ++++--
+ engines/director/sound.cpp             | 4 ++++
+ 3 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-funcs.cpp b/engines/director/lingo/lingo-funcs.cpp
+index e9c23cb..1f494af 100644
+--- a/engines/director/lingo/lingo-funcs.cpp
++++ b/engines/director/lingo/lingo-funcs.cpp
+@@ -222,6 +222,7 @@ void Lingo::func_play(Datum &frame, Datum &movie) {
+ void Lingo::func_cursor(Datum cursorDatum) {
+ 	Window *stage = _vm->getCurrentWindow();
+ 	Score *score = stage->getCurrentMovie()->getScore();
++	warning("MULLEDIAG %u cursor(%s)", g_system->getMillis(), cursorDatum.asString(true).c_str());
+ 	if (cursorDatum.type == ARRAY){
+ 		score->_defaultCursor.readFromCast(cursorDatum);
+ 	} else {
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index 1e2de3e..c9ed3b4 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -524,6 +524,8 @@ void Score::updateCurrentFrame() {
+ 		// Load the current sprite information into the _currentFrame data store.
+ 		// This copies in the frame data and updates _curFrameNumber.
+ 		loadFrame(nextFrameNumberToLoad, true);
++		if (_movie->getMacName().hasPrefixIgnoreCase("LBSTART"))
++			warning("MULLEDIAG %u LBSTART frame %d tempo %d cue %d", g_system->getMillis(), nextFrameNumberToLoad, _currentFrame->_mainChannels.tempo, _currentFrame->_mainChannels.tempoCuePoint);
+ 
+ 		for (uint ch = 0; ch < _channels.size(); ch++)
+ 			_channels[ch]->_sprite->releaseAutoPuppet(_currentFrame->_sprites[ch]->_copyBackMask);
+@@ -599,8 +601,8 @@ void Score::updateNextFrameTime() {
+ 			}
+ 		} else { // D6+
+ 			int16 tempoCuePoint = _currentFrame->_mainChannels.tempoCuePoint;
+-			if (tempo == 248 || tempo < 246)
+-				warning("Score::updateNextFrameTime(): D6 frame %d tempo %d cue %d (wait instruction)", getCurrentFrameNum(), tempo, tempoCuePoint);
++			if (tempo != 246 || tempoCuePoint <= 0)
++				warning("MULLEDIAG %u D6 frame %d tempo %d cue %d", g_system->getMillis(), getCurrentFrameNum(), tempo, tempoCuePoint);
+ 
+ 			if (tempo == 255) {
+ 				// Wait for sound channel 1
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index a156e00..97d6466 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -161,6 +161,7 @@ void DirectorSound::playSound(SoundID soundID, int soundChannel, bool forPuppet)
+ void DirectorSound::playCastMember(CastMemberID memberID, int soundChannel, bool forPuppet) {
+ 	if (!assertChannel(soundChannel))
+ 		return;
++	warning("MULLEDIAG %u playCastMember %s ch %d puppet %d", g_system->getMillis(), memberID.asString().c_str(), soundChannel, forPuppet);
+ 
+ 	if (memberID.member == 0) {
+ 		// Normally cast member 0 stops the sound.
+@@ -533,6 +534,8 @@ void DirectorSound::stopSound(int soundChannel) {
+ 		return;
+ 
+ 	debugC(5, kDebugSound, "DirectorSound::stopSound(): stopping channel %d", soundChannel);
++	if (isChannelActive(soundChannel))
++		warning("MULLEDIAG %u stopSound ch %d (was active)", g_system->getMillis(), soundChannel);
+ 	if (_channels[soundChannel]->loopPtr)
+ 		_channels[soundChannel]->loopPtr = nullptr;
+ 	cancelFade(soundChannel);
+@@ -544,6 +547,7 @@ void DirectorSound::stopSound(int soundChannel) {
+ 
+ void DirectorSound::stopSound() {
+ 	debugC(5, kDebugSound, "DirectorSound::stopSound(): stopping all channels");
++	warning("MULLEDIAG %u stopSound all", g_system->getMillis());
+ 	for (auto &it : _channels) {
+ 		if (!it._value)
+ 			continue;
+-- 
+2.54.0 (Apple Git-157)
+

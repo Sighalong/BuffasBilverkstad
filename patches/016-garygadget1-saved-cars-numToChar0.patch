@@ -1,0 +1,44 @@
+From 3ab47c04f041905476284e3ff4a27aea3f891ca3 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:07:26 +0200
+Subject: [PATCH] 0016 garygadget1 saved cars listed via quirks cache;
+ numToChar(0) returns empty string
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/game-quirks.cpp          | 2 ++
+ engines/director/lingo/lingo-builtins.cpp | 5 +++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/engines/director/game-quirks.cpp b/engines/director/game-quirks.cpp
+index 4ed09bb..fde2555 100644
+--- a/engines/director/game-quirks.cpp
++++ b/engines/director/game-quirks.cpp
+@@ -185,6 +185,8 @@ struct SaveFilePath {
+ } const saveFilePaths[] = {
+ 	{ "darkeye", Common::kPlatformWindows, "SAVEDDKY/" },
+ 	{ "missionplanetx", Common::kPlatformWindows, "" },
++	// carPath "c:\levande\mullebil\bilar\" does not exist on disk, so findAbsolutePath() gives an empty path -> root of the cache
++	{ "garygadget1", Common::kPlatformWindows, "" },
+ 	{"simpsonsstudio", Common::kPlatformWindows, "SIMPSONS/SUPPORT/TOONDATA/"},
+ 	{"simpsonsstudio", Common::kPlatformMacintosh, "SIMPSONS/SUPPORT/TOONDATA/"},
+ 	{ nullptr, Common::kPlatformUnknown, nullptr },
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 8ce59e8..6a4c2a1 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -797,6 +797,11 @@ void LB::b_numToChar(int nargs) {
+ 	}
+ 
+ 	int num = d.asInt();
++	if (num == 0) {
++		// numToChar(0) would yield a NUL char; return an empty string instead
++		g_lingo->push(Datum(Common::String()));
++		return;
++	}
+ 	g_lingo->push(Common::U32String(numToChar(num)).encode(Common::kUtf8));
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

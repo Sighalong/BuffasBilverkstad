@@ -1,0 +1,84 @@
+From ba96235bd4de521aa70cba1b379914dc521bace0 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:40:13 +0200
+Subject: [PATCH] 0008 text member bg colour from palette at draw time (dev B)
+
+---
+ engines/director/castmember/text.cpp | 15 ++++++++++++++-
+ engines/director/castmember/text.h   |  3 ++-
+ 2 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index a697708..f0a164b 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -50,6 +50,7 @@ TextCastMember::TextCastMember(Cast *cast, uint16 castId, Common::SeekableReadSt
+ 	_maxHeight = _textHeight = 0;
+ 
+ 	_bgcolor = 0;
++	_bgColorOverride = false;
+ 	_fgcolor = 0xff;
+ 
+ 	_textFlags = 0;
+@@ -199,6 +200,7 @@ TextCastMember::TextCastMember(Cast *cast, uint16 castId, TextCastMember &source
+ 	_rtext = source._rtext;
+ 
+ 	_bgcolor = source._bgcolor;
++	_bgColorOverride = source._bgColorOverride;
+ 	_fgcolor = source._fgcolor;
+ }
+ 
+@@ -206,8 +208,10 @@ void TextCastMember::setColors(uint32 *fgcolor, uint32 *bgcolor) {
+ 	if (fgcolor)
+ 		_fgcolor = *fgcolor;
+ 
+-	if (bgcolor)
++	if (bgcolor) {
+ 		_bgcolor = *bgcolor;
++		_bgColorOverride = true;
++	}
+ 
+ 	// if we want to keep the format unchanged, then we need to modify _ftext as well
+ 	Graphics::MacText *target = getWidget();
+@@ -230,8 +234,17 @@ Graphics::TextAlign TextCastMember::getAlignment() {
+ 	}
+ }
+ 
++uint32 TextCastMember::getBackColor() {
++	// The index depends on the palette in effect, which is not set yet when
++	// the cast member is loaded (a black field background otherwise)
++	if (!_bgColorOverride)
++		_bgcolor = g_director->_wm->findBestColor(_bgpalinfo1 & 0xff, _bgpalinfo2 & 0xff, _bgpalinfo3 & 0xff);
++	return _bgcolor;
++}
++
+ void TextCastMember::setBackColor(uint32 bgCol) {
+ 	_bgcolor = bgCol;
++	_bgColorOverride = true;
+ 	_modified = true;
+ }
+ 
+diff --git a/engines/director/castmember/text.h b/engines/director/castmember/text.h
+index f7aa80d..23edb0c 100644
+--- a/engines/director/castmember/text.h
++++ b/engines/director/castmember/text.h
+@@ -50,7 +50,7 @@ public:
+ 	void updateFromWidget(Graphics::MacWidget *widget, bool spriteEditable) override;
+ 	Graphics::TextAlign getAlignment();
+ 
+-	uint32 getBackColor() override { return _bgcolor; }
++	uint32 getBackColor() override;
+ 	void setBackColor(uint32 bgCol) override;
+ 	uint32 getForeColor() override { return _fgcolor; }
+ 	uint32 getForeColor(int start, int end);
+@@ -138,6 +138,7 @@ private:
+ 	Graphics::MacWidget *createWindowOrWidget(Common::Rect &bbox, Common::Rect dims, Graphics::MacFont *macFont);
+ 
+ 	uint32 _bgcolor;
++	bool _bgColorOverride;	// set by Lingo; otherwise the colour is derived from the stored RGB
+ 	uint32 _fgcolor;
+ };
+ 
+-- 
+2.54.0 (Apple Git-157)
+

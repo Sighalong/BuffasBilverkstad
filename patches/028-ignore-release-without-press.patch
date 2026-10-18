@@ -1,0 +1,50 @@
+From a4f716f69c250a8265af175f68ab5a58ff44fa25 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:46:39 +0200
+Subject: [PATCH] 0025 ignore a mouse release with no press in the game window
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/events.cpp | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/engines/director/events.cpp b/engines/director/events.cpp
+index d2d8b1a..74fcfef 100644
+--- a/engines/director/events.cpp
++++ b/engines/director/events.cpp
+@@ -53,6 +53,8 @@ bool DirectorEngine::pollEvent(Common::Event &event) {
+ 	return g_system->getEventManager()->pollEvent(event);
+ }
+ 
++static bool g_mullePressSeen = false;
++
+ bool DirectorEngine::processSysEvents(bool captureClick, bool skipWindowManager) {
+ 	debugC(9, kDebugEvents, "\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+ 	debugC(9, kDebugEvents, "@@@@   Processing events");
+@@ -255,6 +257,7 @@ bool Movie::processSysEvent(Common::Event &event) {
+ 
+ 	case Common::EVENT_LBUTTONDOWN:
+ 	case Common::EVENT_RBUTTONDOWN:
++		g_mullePressSeen = true;
+ 		pos = event.mouse;
+ 		if (sc->_waitForClick) {
+ 			sc->_waitForClick = false;
+@@ -303,6 +306,15 @@ bool Movie::processSysEvent(Common::Event &event) {
+ 		{
+ 			pos = event.mouse;
+ 
++			// A release with no press in the game window (e.g. the click that
++			// launched or focused the app) is not a click; Mulle Meck's logo
++			// movie skips itself on any mouseUp
++			if (!g_mullePressSeen) {
++				debugC(3, kDebugEvents, "Movie::processSysEvent(): ignoring Button Up without a Button Down");
++				return true;
++			}
++			g_mullePressSeen = false;
++
+ 			debugC(3, kDebugEvents, "Movie::processSysEvent(): Button Up @(%d, %d), movie '%s'", pos.x, pos.y, _macName.c_str());
+ 
+ 			LEvent ev = kEventMouseUp;
+-- 
+2.54.0 (Apple Git-157)
+

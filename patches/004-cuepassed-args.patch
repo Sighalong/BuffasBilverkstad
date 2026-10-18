@@ -1,0 +1,103 @@
+From a5101f9e98c62a7991734b83706b3bed4828dbef Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:35:04 +0200
+Subject: [PATCH] 0004 cuePassed args
+
+---
+ engines/director/lingo/lingo-events.cpp | 30 ++++++++++++++++++++++++-
+ engines/director/movie.h                |  1 +
+ engines/director/sound.cpp              | 11 ++++++++-
+ 3 files changed, 40 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index 810feb2..addf851 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -481,6 +481,22 @@ void Movie::queueEvent(Common::Queue<LingoEvent> &queue, LEvent event, int targe
+ 		return;
+ 	}
+ 
++	// cuePassed goes to every sprite's behaviors, then the frame and movie scripts
++	if (event == kEventCuePassed) {
++		if (g_director->getVersion() >= 600) {
++			for (uint ch = 0; ch < _score->_channels.size(); ch++) {
++				Channel *channel = _score->_channels[ch];
++				if (!channel)
++					continue;
++				for (uint i = 0; i < channel->_scriptInstanceList.size(); i++)
++					queue.push(LingoEvent(event, eventId, kSpriteHandler, true, pos, ch, i));
++			}
++		}
++		queue.push(LingoEvent(event, eventId, kFrameHandler, false, pos, channelId));
++		queue.push(LingoEvent(event, eventId, kMovieHandler, false, pos, channelId));
++		return;
++	}
++
+ 	/* When an event occurs the message [...] is first sent to a
+ 	 * primary event handler: [... if exists it is executed] and the
+ 	 * event is passed on to other objects unless you explicitly stop
+@@ -825,7 +841,13 @@ bool Lingo::processEvent(LEvent event, ScriptType st, CastMemberID scriptId, int
+ 		if (obj->getMethod(_eventHandlerTypes[event]).type != VOIDSYM) {
+ 			g_director->getCurrentMovie()->_currentSpriteNum = channelId;
+ 			push(Datum(obj));
+-			LC::call(_eventHandlerTypes[event], 1, false);
++			int objArgs = 1;
++			if (event == kEventCuePassed) {
++				for (auto &a : g_director->getCurrentMovie()->_cueArgs)
++					push(a);
++				objArgs += g_director->getCurrentMovie()->_cueArgs.size();
++			}
++			LC::call(_eventHandlerTypes[event], objArgs, false);
+ 			return execute();
+ 		} else {
+ 			return true;
+@@ -847,6 +869,12 @@ bool Lingo::processEvent(LEvent event, ScriptType st, CastMemberID scriptId, int
+ 			nargs = 1;
+ 		}
+ 
++		if (event == kEventCuePassed) {
++			for (auto &a : g_director->getCurrentMovie()->_cueArgs)
++				push(a);
++			nargs += g_director->getCurrentMovie()->_cueArgs.size();
++		}
++
+ 		LC::call(script->_eventHandlers[event], nargs, false);
+ 		return execute();
+ 	} else {
+diff --git a/engines/director/movie.h b/engines/director/movie.h
+index a4d13e9..e1e522b 100644
+--- a/engines/director/movie.h
++++ b/engines/director/movie.h
+@@ -189,6 +189,7 @@ public:
+ 	bool _videoPlayback;
+ 
+ 	int _nextEventId;
++	Common::Array<Datum> _cueArgs;	// arguments for the cuePassed event being dispatched
+ 	Common::Queue<LingoEvent> _inputEventQueue;
+ 
+ 	int _selStart;
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 4767258..0c8a316 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -782,7 +782,16 @@ void DirectorSound::processCuePoints() {
+ 
+ 				debugC(5, kDebugSound, "DirectorSound::processCuePoints(): cue point %d reached on channel %d", cuePoint, it._key);
+ 
+-				_window->getCurrentMovie()->processEvent(kEventCuePassed, i);
++				// on cuePassed channel, number, name: channel symbol, 1-based cue number, cue name
++				Movie *movie = _window->getCurrentMovie();
++				Datum chan(Common::String::format("sound%d", it._key));
++				chan.type = SYMBOL;
++				movie->_cueArgs.clear();
++				movie->_cueArgs.push_back(chan);
++				movie->_cueArgs.push_back(Datum((int)i + 1));
++				movie->_cueArgs.push_back(Datum(i < soundCast->_cuePointNames.size() ? soundCast->_cuePointNames[i] : Common::String()));
++				movie->processEvent(kEventCuePassed, 0);
++				movie->_cueArgs.clear();
+ 
+ 				channel->lastCuePointIndex = i;
+ 			}
+-- 
+2.54.0 (Apple Git-157)
+

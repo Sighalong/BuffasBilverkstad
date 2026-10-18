@@ -1,0 +1,35 @@
+0027 UTF-8 encoding keeps U+0000; NUL-append warning silenced (common/, outside the git tree)
+--- a/common/str-enc.cpp
++++ b/common/str-enc.cpp
+@@ -907,7 +907,10 @@
+ 			break;
+ 		}
+ 
+-		operator+=(pBytes);
++		// Append byte by byte: appending pBytes as a C string drops U+0000
++		// (Director fields can hold binary data, e.g. Mulle Meck's road maps)
++		for (unsigned short b = 0; b < bytesToWrite; b++)
++			operator+=(pBytes[b]);
+ 	}
+ 
+ 	return kStringEncodingResultSucceeded;
+--- a/common/str-base.cpp
++++ b/common/str-base.cpp
+@@ -543,7 +543,7 @@
+ TEMPLATE void BASESTRING::assign(size_t count, value_type c) {
+ 	if (c == 0) {
+ #ifndef SCUMMVM_UTIL
+-		warning("Adding \\0 to String. This is permitted, but can have unwanted consequences. (This warning will be removed later.)");
++		; // Director binary fields append NUL bytes on purpose (warning removed for Mulle Meck)
+ #endif
+ 	}
+ 
+@@ -989,7 +989,7 @@
+ TEMPLATE void BASESTRING::append(size_t count, value_type c) {
+ 	if (c == 0) {
+ #ifndef SCUMMVM_UTIL
+-		warning("Adding \\0 to String. This is permitted, but can have unwanted consequences. (This warning will be removed later.)");
++		; // Director binary fields append NUL bytes on purpose (warning removed for Mulle Meck)
+ #endif
+ 	}
+ 	ensureCapacity(_size + count, true);

@@ -1,0 +1,26 @@
+From 2f3367c9f92c17a74436a1e8939ba090e1cca830 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:37:29 +0200
+Subject: [PATCH] 0005 behavior spriteNum
+
+---
+ engines/director/lingo/lingo-events.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index addf851..7e8599e 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -1041,6 +1041,9 @@ void Score::createScriptInstances(int frameNum) {
+ 				continue;
+ 			}
+ 
++			// Director stores the sprite on the instance; handlers called from
++			// outside sprite events (e.g. Mulle Meck's drag report) rely on it
++			instance.u.obj->setProp("spriteNum", Datum(i), true);
+ 			channel->_scriptInstanceList.push_back(instance);
+ 		}
+ 
+-- 
+2.54.0 (Apple Git-157)
+

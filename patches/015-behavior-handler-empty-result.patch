@@ -1,0 +1,37 @@
+From c608c19bb5fc152088c1f20c979649141581c23c Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:57:12 +0200
+Subject: [PATCH] 0015 callBehaviorHandler: no pop when handler left no result
+
+---
+ engines/director/lingo/lingo-builtins.cpp | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index c888e1b..8ce59e8 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -1926,6 +1926,7 @@ static Datum callBehaviorHandler(Datum &instance, const Common::String &msgName,
+ 	if (sym.type == VOIDSYM)
+ 		return Datum();
+ 
++	uint stackSize = g_lingo->_state->stack.size();
+ 	g_lingo->push(instance);
+ 	for (int j = (int)extraArgs.size() - 1; j >= 0; j--)
+ 		g_lingo->push(extraArgs[j]);
+@@ -1933,6 +1934,12 @@ static Datum callBehaviorHandler(Datum &instance, const Common::String &msgName,
+ 	int frame = g_lingo->_state->callstack.size();
+ 	LC::call(sym, 1 + (int)extraArgs.size(), true);
+ 	g_lingo->execute(frame);
++	// Nested sendSprite chains (Mulle Meck's junkyard Buffa/anim behaviors)
++	// can come back without a result; don't pop the caller's stack
++	if (g_lingo->_state->stack.size() <= stackSize) {
++		warning("callBehaviorHandler: '%s' left no return value", msgName.c_str());
++		return Datum();
++	}
+ 	return g_lingo->pop();
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,46 @@
+From e29ce7750a4fc655fc5df7110860fe8ccdd73aa0 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:53:41 +0200
+Subject: [PATCH] 0013 mouseUpOutSide on release outside clicked sprite
+
+---
+ engines/director/events.cpp | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/engines/director/events.cpp b/engines/director/events.cpp
+index b957d9f..fb6a7eb 100644
+--- a/engines/director/events.cpp
++++ b/engines/director/events.cpp
+@@ -259,12 +259,6 @@ bool Movie::processSysEvent(Common::Event &event) {
+ 		} else {
+ 			pos = event.mouse;
+ 
+-			if (g_director->getVersion() >= 600) {
+-				if (_lastClickedSpriteId && _lastClickedSpriteId != spriteId) {
+-					processInputEvent(kEventMouseUpOutSide, _lastClickedSpriteId, pos);
+-				}
+-			}
+-
+ 			// FIXME: Check if these are tracked with the right mouse button
+ 			_lastEventTime = g_director->getMacTicks();
+ 			_lastClickTime2 = _lastClickTime;
+@@ -324,7 +318,15 @@ bool Movie::processSysEvent(Common::Event &event) {
+ 				}
+ 			}
+ 
+-			result = processInputEvent(ev, 0, pos);
++			// D6: releasing outside the sprite that got the mouseDown sends it
++			// mouseUpOutSide instead of mouseUp (Mulle Meck: drag a name to the toilet)
++			uint16 upSpriteId = sc->getMouseSpriteIDFromPos(pos);
++			if (g_director->getVersion() >= 600 && ev == kEventMouseUp &&
++					_lastClickedSpriteId && _lastClickedSpriteId != upSpriteId) {
++				result = processInputEvent(kEventMouseUpOutSide, _lastClickedSpriteId, pos);
++			} else {
++				result = processInputEvent(ev, 0, pos);
++			}
+ 
+ 			// D5 has special behavior here
+ 			if (g_director->getVersion() >= 500 && g_director->getVersion() < 600) {
+-- 
+2.54.0 (Apple Git-157)
+

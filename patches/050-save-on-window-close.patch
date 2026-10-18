@@ -1,0 +1,73 @@
+From cd5e894d196f81118258afed1edf6f2b0b227b2a Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:50:52 +0200
+Subject: [PATCH] director: run Mulle Meck's save handler when the window is
+ closed; MULLE_QUITAFTER test hook
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/director.cpp | 27 +++++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/engines/director/director.cpp b/engines/director/director.cpp
+index 242c4ab..c3b4836 100644
+--- a/engines/director/director.cpp
++++ b/engines/director/director.cpp
+@@ -19,6 +19,8 @@
+  *
+  */
+ 
++#define FORBIDDEN_SYMBOL_EXCEPTION_getenv
++
+ #include "backends/modular-backend.h"
+ #include "backends/graphics/graphics.h"
+ 
+@@ -39,6 +41,8 @@
+ #include "director/sound.h"
+ #include "director/window.h"
+ #include "director/lingo/lingo-profiler.h"
++#include "director/lingo/lingo.h"
++#include "director/mullediag.h"
+ #include "director/debugger/debugtools.h"
+ 
+ /**
+@@ -406,6 +410,16 @@ Common::Error DirectorEngine::run() {
+ 			}
+ 		}
+ 
++		// Test hook: MULLE_QUITAFTER=<seconds> posts a quit event, as closing the window does
++		static const char *mulleQuitAfter = getenv("MULLE_QUITAFTER");
++		static bool mulleQuitSent = false;
++		if (mulleQuitAfter && !mulleQuitSent && g_system->getMillis() > (uint32)atoi(mulleQuitAfter) * 1000) {
++			Common::Event ev;
++			ev.type = Common::EVENT_QUIT;
++			g_system->getEventManager()->pushEvent(ev);
++			mulleQuitSent = true;
++		}
++
+ 		g_director->delayMillis(10);
+ #ifdef USE_IMGUI
+ 		// For performance reasons, disable the renderer callback if the ImGui debug flag isn't set
+@@ -417,6 +431,19 @@ Common::Error DirectorEngine::run() {
+ #endif
+ 	}
+ 
++	// Mulle Meck saves its progress only from its own exit paths (killall ->
++	// kill(gMulleGlobals) -> save). Closing the window or Cmd-Q skips them, so
++	// run the game's save handler here while the movie is still loaded.
++	// (killall() has already killed gMulleGlobals when the game quit by itself)
++	if (!strcmp(_gameDescription->desc.gameId, "garygadget1") && _stage->getCurrentMovie() &&
++			g_lingo->_globalvars.contains("gMulleGlobals") && g_lingo->_globalvars["gMulleGlobals"].type == OBJECT) {
++		setCurrentWindow(_stage);
++		g_lingo->switchStateFromWindow();
++		g_lingo->push(g_lingo->_globalvars["gMulleGlobals"]);
++		g_lingo->executeHandler("save", 1);
++		MDIAG(1, "save", "save(gMulleGlobals) on window close");
++	}
++
+ #ifdef USE_IMGUI
+ 	_system->setImGuiCallbacks(ImGuiCallbacks());
+ #endif
+-- 
+2.54.0 (Apple Git-157)
+

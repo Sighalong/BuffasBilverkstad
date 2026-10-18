@@ -1,0 +1,40 @@
+From ed8639b85f071415b6aaf93d15a200a2e522f0f6 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 10:13:30 +0200
+Subject: [PATCH] director: D6 frame without a sprite in a channel ends Lingo
+ changes to it
+
+Mulle Meck 86's car, drawn by Lingo into empty-span channels, stayed on
+top of the Leave ignition picture (visible now that 0067 holds it).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index 9b9f38f..3650eac 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -596,8 +596,16 @@ void Score::updateCurrentFrame() {
+ 		if (_movie->getMacName().hasPrefixIgnoreCase("LBSTART"))
+ 			MDIAG(2, "frame", "LBSTART frame %d tempo %d cue %d", nextFrameNumberToLoad, _currentFrame->_mainChannels.tempo, _currentFrame->_mainChannels.tempoCuePoint);
+ 
+-		for (uint ch = 0; ch < _channels.size(); ch++)
+-			_channels[ch]->_sprite->releaseAutoPuppet(_currentFrame->_sprites[ch]->_copyBackMask);
++		for (uint ch = 0; ch < _channels.size(); ch++) {
++			uint32 mask = _currentFrame->_sprites[ch]->_copyBackMask;
++			// D6: Lingo changes to a sprite end with its span. A frame with no
++			// sprite at all in the channel ends it (Mulle Meck 86's car, drawn by
++			// Lingo, stayed on top of the "Leave" ignition picture).
++			if (_version >= kFileVer600 && _currentFrame->_sprites[ch]->_castId.member == 0 &&
++					_currentFrame->_sprites[ch]->_spriteInfo.startFrame == 0 && !_channels[ch]->_sprite->_puppet)
++				mask = 0xFFFFFFFF;
++			_channels[ch]->_sprite->releaseAutoPuppet(mask);
++		}
+ 
+ 		// Finally, update the channels and buffer any dirty rectangles.
+ 		// This will ignore any channel data that is overridden with the puppet flag.
+-- 
+2.54.0 (Apple Git-157)
+

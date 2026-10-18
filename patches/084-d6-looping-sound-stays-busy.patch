@@ -1,0 +1,34 @@
+From b08ebd91e5aa9d9020c7d8c7371ae6b3dfbb213b Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 10:18:12 +0200
+Subject: [PATCH] director: in D6 a looping sound stays busy while it plays
+
+The first-loop workaround made Mulle Meck 92's looping background sound
+"finish" after 6.5 s; its WaitForSound behavior then left the frame and
+cut Figge's conversation.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/sound.cpp | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index f977558..2024600 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -398,8 +398,10 @@ bool DirectorSound::isChannelActive(int soundChannel) {
+ 		soundChannel, _mixer->getSoundElapsedTime(_channels[soundChannel]->handle), (void *)_channels[soundChannel]->loopPtr);
+ 
+ 	// Looped sounds are considered to be inactive after the first play
+-	// WORKAROUND HACK
+-	if (_channels[soundChannel]->loopPtr != nullptr)
++	// WORKAROUND HACK. Not in D6: a looping sound stays busy while it plays
++	// (Mulle Meck 92's looping background ended Figge's conversation after
++	// its first 6.5 s loop).
++	if (_channels[soundChannel]->loopPtr != nullptr && g_director->getVersion() < 600)
+ 		return _channels[soundChannel]->loopPtr->getCompleteIterations() < 1;
+ 
+ 	return true;
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,42 @@
+From 6d87c316498efc58279aa46216eb3bd6ed6f74e8 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 08:51:44 +0200
+Subject: [PATCH] director: skip a D6 palette fade whose colors are already on
+ screen
+
+Mulle Meck 10.DXR frame 64 fades to the current palette at speed 0,
+which blocked the intro for 8 s while the bike drove behind the barn.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index c4b7f00..af199cb 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -1180,6 +1180,20 @@ bool Score::renderPrePaletteCycle(RenderMode mode) {
+ 				return false;
+ 			}
+ 
++			// A fade to the colors already on screen changes nothing but would
++			// block for seconds at speed 0 (Mulle Meck 10.DXR frame 64 froze
++			// the intro for 8 s).
++			int diff = 0;
++			for (int c = 0; c < MIN(256, destPal->length); c++)
++				if (memcmp(_paletteSnapshotBuffer + c * 3, destPal->palette + c * 3, 3))
++					diff++;
++			MDIAG(1, "render", "palette fade frame %d to %s: %d colors differ, %d steps (speed %d)", _curFrameNumber,
++				currentPalette.asString().c_str(), diff, fadeFrames, _currentFrame->_mainChannels.palette.speed);
++			if (!diff) {
++				_vm->setPalette(currentPalette);
++				return false;
++			}
++
+ 			// For fade palette transitions, the whole fade happens with
+ 			// the previous frame's layout.
+ 			debugC(2, kDebugImages, "Score::renderPrePaletteCycle(): fading palette to %s over %d frames", currentPalette.asString().c_str(), fadeFrames);
+-- 
+2.54.0 (Apple Git-157)
+

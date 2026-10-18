@@ -1,0 +1,35 @@
+From cda00b55592f9825b12e96542290dfd5ed4be02b Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:53:01 +0200
+Subject: [PATCH] 0026 STXT text is read as exactly strLen bytes, keeping NUL
+ bytes (driving topology maps were cut at the first NUL)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/stxt.cpp | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/stxt.cpp b/engines/director/stxt.cpp
+index 35fc978..daacaf5 100644
+--- a/engines/director/stxt.cpp
++++ b/engines/director/stxt.cpp
+@@ -50,7 +50,15 @@ Stxt::Stxt(Cast *cast, Common::SeekableReadStreamEndian &textStream) : _cast(cas
+ 	}
+ 	uint32 strLen = textStream.readUint32();
+ 	uint32 dataLen = textStream.readUint32();
+-	Common::String text = textStream.readString(0, strLen);
++	// Read exactly strLen bytes: fields can hold binary data with NUL bytes
++	// (Mulle Meck's driving topology maps), which readString() would cut off
++	Common::String text;
++	{
++		char *buf = new char[strLen + 1];
++		uint32 got = textStream.read(buf, strLen);
++		text = Common::String(buf, got);
++		delete[] buf;
++	}
+ 	debugC(3, kDebugText, "Stxt init: offset: %d strLen: %d dataLen: %d textlen: %u", offset, strLen, dataLen, text.size());
+ 
+ 	// TODO: Before applying formatting and decoding the text to a U32String,
+-- 
+2.54.0 (Apple Git-157)
+

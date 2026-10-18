@@ -1,0 +1,29 @@
+From eaf2085c30d0a67cbdb624a85019eb3f670b8862 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:54:49 +0200
+Subject: [PATCH] 0014 no auto-select-all for editable text fields without a
+ Lingo selection (dev B)
+
+---
+ engines/director/castmember/text.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index f0a164b..b622a03 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -315,6 +315,11 @@ Graphics::MacWidget *TextCastMember::createWindowOrWidget(Common::Rect &bbox, Co
+ 	int maxWidth = _initialRect.width() + _borderSize * 2 + _gutterSize * 2 + _boxShadow;
+ 	widget = new Graphics::MacText(g_director->getCurrentWindow()->getMacWindow(), bbox.left, bbox.top, dims.width(), dims.height(), g_director->_wm, _ftext, macFont, getForeColor(), getBackColor(), maxWidth, getAlignment(), _lineSpacing, _borderSize, _gutterSize, _boxShadow, _textShadow, _textType == kTextTypeFixed || _textType == kTextTypeScrolling, _textType == kTextTypeScrolling);
+ 	widget->setSelRange(g_director->getCurrentMovie()->_selStart, g_director->getCurrentMovie()->_selEnd);
++	// selStart/selEnd of -1/-1 means Lingo never set a selection. MacText would treat
++	// that as "select everything" on activation, which inverts the whole field
++	// (Mulle Meck's name entry showed white text on black).
++	if (g_director->getCurrentMovie()->_selStart == -1 && g_director->getCurrentMovie()->_selEnd == -1)
++		widget->setAutoSelect(false);
+ 	widget->draw();
+ 
+ 	return widget;
+-- 
+2.54.0 (Apple Git-157)
+

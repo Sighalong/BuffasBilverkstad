@@ -1,0 +1,43 @@
+From 980feec52329c7d5bf98562ff5078dcb830898e8 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:43:15 +0200
+Subject: [PATCH] 0010 Moa sound play diagnostics (dev B)
+
+---
+ engines/director/sound.cpp | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 2f4ffa6..1f9ace0 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -1151,6 +1151,26 @@ bool MoaSoundFormatDecoder::loadSampleStream(Common::SeekableReadStreamEndian &s
+ Audio::AudioStream *MoaSoundFormatDecoder::getAudioStream(bool looping, bool forPuppet, DisposeAfterUse::Flag disposeAfterUse) {
+ 	if (!_data)
+ 		return nullptr;
++	// Diagnostic: header fields and sample range (silent 8-bit data sits at 128, 16-bit at 0)
++	int lo = 0, hi = 0;
++	if (_format.bitsPerSample == 8) {
++		lo = 255;
++		for (uint32 i = 0; i < _size; i++) {
++			lo = MIN<int>(lo, _data[i]);
++			hi = MAX<int>(hi, _data[i]);
++		}
++	} else if (_format.bitsPerSample == 16) {
++		for (uint32 i = 0; i + 1 < _size; i += 2) {
++			int16 be = (int16)READ_BE_UINT16(_data + i);
++			int16 le = (int16)READ_LE_UINT16(_data + i);
++			lo = MIN<int>(lo, MIN<int>(be, le));
++			hi = MAX<int>(hi, MAX<int>(be, le));
++		}
++	}
++	debugC(1, kDebugSound, "MoaSound: rate %d, %d-bit, %d ch, compression '%.16s', header '%.16s', frames %d, data %d bytes (header size %d), sample range %d..%d, loop %d-%d",
++		_format.frameRate, _format.bitsPerSample, _format.numChannels, (const char *)_format.compressionType, (const char *)_format.soundHeaderType,
++		_format.numFrames, _size, _format.size, lo, hi, _format.loopStartFrame, _format.loopEndFrame);
++
+ 	byte *buffer = (byte *)malloc(_size);
+ 	memcpy(buffer, _data, _size);
+ 
+-- 
+2.54.0 (Apple Git-157)
+

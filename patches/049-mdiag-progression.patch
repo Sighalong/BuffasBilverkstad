@@ -1,0 +1,44 @@
+From 1e9e2ad8d09e82fc04717e0af03e6d0c50e92dd2 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:40:14 +0200
+Subject: [PATCH] director: MDIAG prog lines for Mulle progression handlers
+ (dev-c)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-code.cpp | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-code.cpp b/engines/director/lingo/lingo-code.cpp
+index 75171f2..479a5dc 100644
+--- a/engines/director/lingo/lingo-code.cpp
++++ b/engines/director/lingo/lingo-code.cpp
+@@ -1891,6 +1891,25 @@ void LC::call(const Symbol &funcSym, int nargs, bool allowRetVal) {
+ 		defaultRetVal = funcSym.target; // return me
+ 	}
+ 
++	// Mulle Meck: progression diagnostics (items, missions, saved cars) for the play-log analysis.
++	if (funcSym.name && mdiagLevel() >= 1) {
++		static const char *const progHandlers[] = {"addCompletedMission", "setUserProp", "setCacheProp", "addJunkPart", "removeJunkPart",
++			"addYardPart", "setJunkPartProp", "setDrivingInfo", "saveCar", "loadCar", "changeCarName", "setId", nullptr};
++		for (int i = 0; progHandlers[i]; i++) {
++			if (funcSym.name->equalsIgnoreCase(progHandlers[i])) {
++				Common::String args;
++				for (int a = 0; a < nargs && a < 6; a++) {
++					Common::String v = g_lingo->_state->stack[g_lingo->_state->stack.size() - nargs + a].asString(true);
++					if (v.size() > 60)
++						v = v.substr(0, 60) + "...";
++					args += (a ? ", " : "") + v;
++				}
++				MDIAG(1, "prog", "%s(%s) in movie %s", funcSym.name->c_str(), args.c_str(), g_director->getCurrentMovie() ? g_director->getCurrentMovie()->getMacName().c_str() : "?");
++				break;
++			}
++		}
++	}
++
+ 	g_lingo->pushContext(funcSym, allowRetVal, defaultRetVal, paramCount, nargs);
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

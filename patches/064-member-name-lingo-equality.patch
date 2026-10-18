@@ -1,0 +1,37 @@
+From 16ea263fa05a88abc6e401d34049563f9312ba0b Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 20:35:18 +0200
+Subject: [PATCH] director: member name lookup falls back to Lingo string
+ equality
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/cast.cpp | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/engines/director/cast.cpp b/engines/director/cast.cpp
+index 0be0f57..739034c 100644
+--- a/engines/director/cast.cpp
++++ b/engines/director/cast.cpp
+@@ -186,6 +186,18 @@ CastMember *Cast::getCastMemberByNameAndType(const Common::String &name, CastTyp
+ 		if (_castsNames.contains(cname))
+ 			return getCastMember(_castsNames[cname]);
+ 	}
++
++	// Director matches member names the way Lingo compares strings, so
++	// "UserBørjeDB" finds "UserBorjeDB" (Mulle Meck login: the player list
++	// says the names are equal). Only on a miss: this scans the names.
++	Common::String want = g_lingo->normalizeString(type == kCastTypeAny ? name :
++		Common::String::format("%s:%d", name.c_str(), type));
++	for (auto &it : _castsNames) {
++		if (g_lingo->normalizeString(it._key).equalsIgnoreCase(want)) {
++			MDIAG(2, "cast", "member name '%s' matched '%s'", name.c_str(), it._key.c_str());
++			return getCastMember(it._value);
++		}
++	}
+ 	return nullptr;
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

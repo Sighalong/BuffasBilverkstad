@@ -1,0 +1,70 @@
+From d13b18fde0b2a0f230c333f0f14fabba8deec944 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 20:24:14 +0200
+Subject: [PATCH] director: D6 typing goes to the first editable field when
+ none has focus
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/events.cpp |  3 +++
+ engines/director/score.cpp  | 17 +++++++++++++++++
+ engines/director/score.h    |  1 +
+ 3 files changed, 21 insertions(+)
+
+diff --git a/engines/director/events.cpp b/engines/director/events.cpp
+index 4b06348..a5aeb2d 100644
+--- a/engines/director/events.cpp
++++ b/engines/director/events.cpp
+@@ -188,6 +188,9 @@ bool DirectorEngine::processSysEvents(bool captureClick, bool skipWindowManager)
+ 			}
+ 		}
+ 
++		if (event.type == Common::EVENT_KEYDOWN && getVersion() >= 600 && getCurrentMovie())
++			getCurrentMovie()->getScore()->focusEditableWidget();
++
+ 		if (skipWindowManager || !_wm->processEvent(event)) {
+ 			// We only want to handle these events if the event
+ 			// wasn't handled by the window manager.
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index bce6947..0b0f473 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -1717,6 +1717,23 @@ void Score::screenShot() {
+ #endif // USE_PNG
+ }
+ 
++// Director sends typing to an editable field even after clicks elsewhere took
++// the focus away (Mulle Meck 06.DXR car name): give the first one the focus.
++void Score::focusEditableWidget() {
++	Graphics::MacWidget *active = _vm->_wm->getActiveWidget();
++	if (active && active->isEditable())
++		return;
++	for (uint i = 1; i < _channels.size(); i++) {
++		Channel *channel = _channels[i];
++		if (channel->_widget && channel->_sprite->_cast && channel->_sprite->_cast->_type == kCastText &&
++				channel->_widget->isEditable()) {
++			_vm->_wm->setActiveWidget(channel->_widget);
++			MDIAG(2, "input", "keyboard focus to editable sprite %d", i);
++			return;
++		}
++	}
++}
++
+ uint16 Score::getSpriteIDOfActiveWidget() {
+ 	Graphics::MacWidget *active = _vm->_wm->getActiveWidget();
+ 	if (!active)
+diff --git a/engines/director/score.h b/engines/director/score.h
+index c85d5e4..5662d7f 100644
+--- a/engines/director/score.h
++++ b/engines/director/score.h
+@@ -121,6 +121,7 @@ public:
+ 	uint16 getMouseSpriteIDFromPos(Common::Point pos);
+ 	uint16 getActiveSpriteIDFromPos(Common::Point pos);
+ 	uint16 getRolloverSpriteIDFromPos(Common::Point pos);
++	void focusEditableWidget();
+ 	bool checkSpriteRollOver(uint16 spriteId, Common::Point pos);
+ 	uint16 getRollOverSpriteIDFromPos(Common::Point pos);
+ 	Common::Array<Channel *> getSpriteIntersections(const Common::Rect &r);
+-- 
+2.54.0 (Apple Git-157)
+

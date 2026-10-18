@@ -1,0 +1,218 @@
+From dd7eec47f36d60a1491317d34496208fc7f57d2f Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 09:35:58 +0200
+Subject: [PATCH] director: keep the data cast in memory across movie changes;
+ MULLE_EVAL test hook
+
+The data cast was reloaded from the save file on every movie load, so
+changes made since the last save were lost (Mulle Meck race hi-scores).
+MULLE_EVAL="movie|lingo||movie|lingo" runs Lingo steps for tests
+(jump straight into a scene).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/cast.cpp   | 61 +++++++++++++++++++++++++++++--------
+ engines/director/cast.h     |  3 ++
+ engines/director/window.cpp | 50 ++++++++++++++++++++++++++++++
+ 3 files changed, 101 insertions(+), 13 deletions(-)
+
+diff --git a/engines/director/cast.cpp b/engines/director/cast.cpp
+index 739034c..ea7faee 100644
+--- a/engines/director/cast.cpp
++++ b/engines/director/cast.cpp
+@@ -998,11 +998,23 @@ static bool readSaveString(Common::ReadStream *in, Common::String &s) {
+ 	return got == len;
+ }
+ 
+-bool Cast::saveRuntimeData() {
+-	// Only the game's "data" cast (DATA.CST) is a save database
+-	if (!_castName.equalsIgnoreCase("data") || !_loadedCast)
+-		return false;
++// The "data" cast is reloaded with every movie; Director keeps a shared cast
++// in memory, so changes not yet saved (Mulle Meck's race hi-scores, made in
++// 05 without a save) must survive the movie change. Snapshot on leaving a
++// movie, restore from the snapshot instead of the file.
++static Common::Array<byte> *s_runtimeSnapshot = nullptr;
++
++void Cast::writeRuntimeData(Common::WriteStream *out, const Common::Array<int> &ids) {
++	out->writeUint32BE(MKTAG('M', 'M', 'S', '1'));
++	out->writeUint32LE(ids.size());
++	for (int id : ids) {
++		out->writeUint32LE(id);
++		writeSaveString(out, getCastMemberInfo(id)->name);
++		writeSaveString(out, _loadedCast->getVal(id)->getField(kTheText).asString());
++	}
++}
+ 
++Common::Array<int> Cast::runtimeDataIds() {
+ 	Common::Array<int> ids;
+ 	for (auto &it : *_loadedCast) {
+ 		CastMember *member = it._value;
+@@ -1012,6 +1024,29 @@ bool Cast::saveRuntimeData() {
+ 			ids.push_back(it._key);
+ 	}
+ 	Common::sort(ids.begin(), ids.end());
++	return ids;
++}
++
++void Cast::snapshotRuntimeData() {
++	if (!_castName.equalsIgnoreCase("data") || !_loadedCast)
++		return;
++	Common::MemoryWriteStreamDynamic mem(DisposeAfterUse::NO);
++	Common::Array<int> ids = runtimeDataIds();
++	writeRuntimeData(&mem, ids);
++	if (!s_runtimeSnapshot)
++		s_runtimeSnapshot = new Common::Array<byte>();
++	s_runtimeSnapshot->resize(mem.size());
++	memcpy(s_runtimeSnapshot->data(), mem.getData(), mem.size());
++	free(mem.getData());
++	MDIAG(2, "save", "snapshot castLib '%s': %d members", _castName.c_str(), (int)ids.size());
++}
++
++bool Cast::saveRuntimeData() {
++	// Only the game's "data" cast (DATA.CST) is a save database
++	if (!_castName.equalsIgnoreCase("data") || !_loadedCast)
++		return false;
++
++	Common::Array<int> ids = runtimeDataIds();
+ 
+ 	Common::String fileName = runtimeDataFileName(_castName);
+ 	Common::String tmpName = fileName + ".tmp";
+@@ -1020,13 +1055,8 @@ bool Cast::saveRuntimeData() {
+ 		warning("Cast::saveRuntimeData(): could not open %s for writing", tmpName.c_str());
+ 		return false;
+ 	}
+-	out->writeUint32BE(MKTAG('M', 'M', 'S', '1'));
+-	out->writeUint32LE(ids.size());
+-	for (int id : ids) {
+-		out->writeUint32LE(id);
+-		writeSaveString(out, getCastMemberInfo(id)->name);
+-		writeSaveString(out, _loadedCast->getVal(id)->getField(kTheText).asString());
+-	}
++	writeRuntimeData(out, ids);
++	snapshotRuntimeData();
+ 	out->finalize();
+ 	bool ok = !out->err();
+ 	delete out;
+@@ -1047,7 +1077,12 @@ void Cast::loadRuntimeData() {
+ 	if (!_castName.equalsIgnoreCase("data") || !_loadedCast)
+ 		return;
+ 
+-	Common::InSaveFile *in = g_system->getSavefileManager()->openForLoading(runtimeDataFileName(_castName));
++	Common::SeekableReadStream *in = nullptr;
++	bool fromSnapshot = s_runtimeSnapshot && !s_runtimeSnapshot->empty();
++	if (fromSnapshot)
++		in = new Common::MemoryReadStream(s_runtimeSnapshot->data(), s_runtimeSnapshot->size());
++	else
++		in = g_system->getSavefileManager()->openForLoading(runtimeDataFileName(_castName));
+ 	if (!in)
+ 		return;
+ 	if (in->readUint32BE() != MKTAG('M', 'M', 'S', '1')) {
+@@ -1091,7 +1126,7 @@ void Cast::loadRuntimeData() {
+ 	}
+ 	delete in;
+ 	debugC(1, kDebugSaving, "Cast::loadRuntimeData(): restored %d of %d members", restored, count);
+-	MDIAG(1, "save", "load castLib '%s': restored %d of %d members", _castName.c_str(), restored, count);
++	MDIAG(1, "save", "load castLib '%s': restored %d of %d members (%s)", _castName.c_str(), restored, count, fromSnapshot ? "memory" : "file");
+ }
+ 
+ // Members without a version-capable writer, and members whose in-memory
+diff --git a/engines/director/cast.h b/engines/director/cast.h
+index 908c017..689451a 100644
+--- a/engines/director/cast.h
++++ b/engines/director/cast.h
+@@ -140,6 +140,9 @@ public:
+ 	Common::SeekableReadStreamEndian *getResource(uint32 tag, uint16 id);
+ 	void rebuildCastNameCache();
+ 	// Persist/restore the text members of the "data" cast (the game's save database)
++	void snapshotRuntimeData();
++	void writeRuntimeData(Common::WriteStream *out, const Common::Array<int> &ids);
++	Common::Array<int> runtimeDataIds();
+ 	bool saveRuntimeData();
+ 	void loadRuntimeData();
+ 
+diff --git a/engines/director/window.cpp b/engines/director/window.cpp
+index e54dadb..7d51a23 100644
+--- a/engines/director/window.cpp
++++ b/engines/director/window.cpp
+@@ -19,6 +19,7 @@
+  *
+  */
+ 
++#define FORBIDDEN_SYMBOL_EXCEPTION_getenv
+ #include "common/debug.h"
+ #include "common/file.h"
+ #include "common/system.h"
+@@ -32,6 +33,9 @@
+ #include "director/debugger.h"
+ #include "director/lingo/lingo.h"
+ #include "director/lingo/lingo-profiler.h"
++#include "director/lingo/lingo-code.h"
++#include "director/lingo/lingo-codegen.h"
++#include "director/lingo/lingo-object.h"
+ #include "director/movie.h"
+ #include "director/window.h"
+ #include "director/mullediag.h"
+@@ -614,6 +618,9 @@ void Window::loadNewSharedCast(Cast *previousSharedCast) {
+ }
+ 
+ bool Window::loadNextMovie() {
++	if (_currentMovie)
++		for (auto &it : *_currentMovie->getCasts())
++			it._value->snapshotRuntimeData();
+ 	_soundManager->changingMovie();
+ 	_newMovieStarted = true;
+ 	_newMovieFirstDraw = true;
+@@ -814,6 +821,49 @@ bool Window::step() {
+ 			}
+ 			// fall through
+ 		case kPlayStarted:
++			{
++				// Dev hook for tests: MULLE_EVAL="<movie prefix>|<Lingo>" runs the
++				// Lingo once, 1.5 s after that movie started (e.g. jump to a scene).
++				// Several steps: "03|...||05|..." (each runs once, in order).
++				static uint mulleEvalStep = 0;
++				static uint32 mulleEvalSeen = 0;
++				static Common::String mulleEvalMovie;
++				const char *mulleEval = getenv("MULLE_EVAL");
++				if (mulleEval) {
++					Common::String all(mulleEval), spec;
++					uint idx = 0;
++					size_t pos = 0;
++					while (idx <= mulleEvalStep) {
++						size_t next = all.find("||", pos);
++						spec = all.substr(pos, next == Common::String::npos ? Common::String::npos : next - pos);
++						if (idx == mulleEvalStep)
++							break;
++						if (next == Common::String::npos) {
++							spec.clear();
++							break;
++						}
++						pos = next + 2;
++						idx++;
++					}
++					size_t bar = spec.find('|');
++					if (!spec.empty() && bar != Common::String::npos && _currentMovie->getMacName().hasPrefix(spec.substr(0, bar))) {
++						if (mulleEvalMovie != _currentMovie->getMacName()) {
++							mulleEvalMovie = _currentMovie->getMacName();
++							mulleEvalSeen = g_system->getMillis();
++						} else if (g_system->getMillis() - mulleEvalSeen > 1500) {
++							mulleEvalStep++;
++							mulleEvalMovie.clear();
++							Common::String code = spec.substr(bar + 1);
++							code.replace(';', '\r');
++							MDIAG(1, "replay", "eval %d in %s: %s", mulleEvalStep, _currentMovie->getMacName().c_str(), code.c_str());
++							if (ScriptContext *sc = g_lingo->_compiler->compileAnonymous(code)) {
++								LC::call(sc->_eventHandlers[kEventGeneric], 0, false);
++								g_lingo->execute();
++							}
++						}
++					}
++				}
++			}
+ 			debugC(5, kDebugEvents, "\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+ 			debugC(5, kDebugEvents, "@@@@   Stepping movie '%s' in '%s'", utf8ToPrintable(_currentMovie->getMacName()).c_str(), _currentPath.c_str());
+ 			debugC(5, kDebugEvents, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
+-- 
+2.54.0 (Apple Git-157)
+

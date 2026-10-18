@@ -1,0 +1,43 @@
+From c30bbaf62ce73f2648d4e3bdc5c728f619d322d1 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:49:16 +0200
+Subject: [PATCH] 0011 reload behaviors for identical-looking new sprite spans
+
+---
+ engines/director/lingo/lingo-events.cpp | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index 7e8599e..c9adf39 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -1014,6 +1014,26 @@ void Score::createScriptInstances(int frameNum) {
+ 	Common::Array<int> newChannels;
+ 	for (int i = 0; i < (int)_channels.size(); i++) {
+ 		Channel *channel = _channels[i];
++
++		// A new sprite span that looks identical to the old one (e.g. Mulle Meck's
++		// junk piles, all "Dummy" until Lingo sets them) isn't reloaded by setClean,
++		// so pick up its range and behaviors here and drop the old span's overrides.
++		if (channel->_scriptInstanceList.size() == 0 && i < (int)_currentFrame->_sprites.size()) {
++			Sprite *frameSprite = _currentFrame->_sprites[i];
++			if (frameSprite && frameSprite->_behaviors.size() > 0 &&
++					frameNum >= frameSprite->_spriteInfo.startFrame && frameNum <= frameSprite->_spriteInfo.endFrame &&
++					(channel->_startFrame != (int)frameSprite->_spriteInfo.startFrame || channel->_endFrame != (int)frameSprite->_spriteInfo.endFrame)) {
++				if (!channel->_sprite->_puppet) {
++					channel->_sprite->releaseAutoPuppet(0xFFFFFFFF);
++					channel->replaceSprite(frameSprite);
++					channel->setNeedsDraw();
++				}
++				channel->_sprite->_behaviors = frameSprite->_behaviors;
++				channel->_startFrame = frameSprite->_spriteInfo.startFrame;
++				channel->_endFrame = frameSprite->_spriteInfo.endFrame;
++			}
++		}
++
+ 		Sprite *sprite = channel->_sprite;
+ 
+ 		// The frame does not belong to the range
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,26 @@
+From 9454a751743c1ef311f9a14be7be5b2ec56e375e Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:59:54 +0200
+Subject: [PATCH] 0035 sound member keeps its loop flag across unload/reload
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/sound.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/engines/director/castmember/sound.cpp b/engines/director/castmember/sound.cpp
+index b87c67e..94613f0 100644
+--- a/engines/director/castmember/sound.cpp
++++ b/engines/director/castmember/sound.cpp
+@@ -219,7 +219,7 @@ void SoundCastMember::unload() {
+ 	delete _audio;
+ 	_audio = nullptr;
+ 	_size = 0;
+-	_looping = false;
++	// _looping is member data (cast info flag, or set from Lingo): keep it across unload/reload
+ 
+ 	_loaded = false;
+ }
+-- 
+2.54.0 (Apple Git-157)
+

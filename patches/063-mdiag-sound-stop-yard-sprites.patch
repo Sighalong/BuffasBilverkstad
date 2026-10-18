@@ -1,0 +1,58 @@
+From 2f4bcdc9748ceb29ea5291ddda172f03f7adb31e Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 20:28:37 +0200
+Subject: [PATCH] diag: who stops a sound and after how long; yard head/body
+ sprite locs
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-the.cpp |  3 +++
+ engines/director/sound.cpp           | 11 +++++++++--
+ 2 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-the.cpp b/engines/director/lingo/lingo-the.cpp
+index e0cbcb3..278ff09 100644
+--- a/engines/director/lingo/lingo-the.cpp
++++ b/engines/director/lingo/lingo-the.cpp
+@@ -2050,6 +2050,9 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
+ 		if (channel->getPosition() != d.asPoint()) {
+ 			channel->setNeedsDraw();
+ 		}
++		// Mulle's head vs body in the yard
++		if ((id == 37 || id == 38 || id == 59) && movie->getMacName().hasPrefix("04"))
++			MDIAG(2, "sprite", "04 sprite %d loc %s member %s", id, d.asString(true).c_str(), sprite->_castId.asString().c_str());
+ 		channel->setPosition(d.asPoint().x, d.asPoint().y);
+ 		break;
+ 	case kTheLocH:
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 9da4ff6..134aeb1 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -38,6 +38,7 @@
+ #include "director/sound.h"
+ #include "director/window.h"
+ #include "director/castmember/sound.h"
++#include "director/lingo/lingo.h"
+ 
+ namespace Director {
+ 
+@@ -534,8 +535,14 @@ void DirectorSound::stopSound(int soundChannel) {
+ 		return;
+ 
+ 	debugC(5, kDebugSound, "DirectorSound::stopSound(): stopping channel %d", soundChannel);
+-	if (isChannelActive(soundChannel))
+-		MDIAG(1, "sound", "stop ch %d (was active)", soundChannel);
++	if (isChannelActive(soundChannel)) {
++		// who stopped it, and how far it got (dog scenes: voices cut short)
++		Common::String by = "engine";
++		if (!g_lingo->_state->callstack.empty() && g_lingo->_state->callstack.back()->sp.name)
++			by = *g_lingo->_state->callstack.back()->sp.name;
++		MDIAG(1, "sound", "stop ch %d (was active) after %u ms by %s", soundChannel,
++			_mixer->getSoundElapsedTime(_channels[soundChannel]->handle), by.c_str());
++	}
+ 	if (_channels[soundChannel]->loopPtr)
+ 		_channels[soundChannel]->loopPtr = nullptr;
+ 	cancelFade(soundChannel);
+-- 
+2.54.0 (Apple Git-157)
+

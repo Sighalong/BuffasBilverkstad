@@ -1,0 +1,44 @@
+From a91655bf2b3c9922991fc247133655adc9fef13a Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:37:36 +0200
+Subject: [PATCH] diag: MULLEDIAG for the 05 map sprite and 30b* map bitmaps -
+ temporary
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/bitmap.cpp | 5 +++++
+ engines/director/lingo/lingo-the.cpp   | 2 ++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/engines/director/castmember/bitmap.cpp b/engines/director/castmember/bitmap.cpp
+index 5baee12..300cc7a 100644
+--- a/engines/director/castmember/bitmap.cpp
++++ b/engines/director/castmember/bitmap.cpp
+@@ -851,6 +851,11 @@ void BitmapCastMember::load() {
+ 	delete pic;
+ 
+ 	debugC(5, kDebugImages, "BitmapCastMember::load(): Bitmap: id: %d, w: %d, h: %d, flags1: %x, flags2: %x updateFlags: %x bytes: %x, bpp: %d clut: %s", imgId, w, h, _flags1, _flags2, _updateFlags, _bytes, _bitsPerPixel, _clut.asString().c_str());
++	{
++		CastMemberInfo *ci = _cast->getCastMemberInfo(_castId);
++		if (ci && ci->name.hasPrefix("30b"))
++			warning("MULLEDIAG map bitmap '%s' id %d: w %d h %d bpp %d clut %s picture %d", ci->name.c_str(), _castId, w, h, _bitsPerPixel, _clut.asString().c_str(), _picture ? 1 : 0);
++	}
+ 
+ 	_loaded = true;
+ }
+diff --git a/engines/director/lingo/lingo-the.cpp b/engines/director/lingo/lingo-the.cpp
+index b43b942..bbc50aa 100644
+--- a/engines/director/lingo/lingo-the.cpp
++++ b/engines/director/lingo/lingo-the.cpp
+@@ -1902,6 +1902,8 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
+ 	case kTheMember:
+ 		{
+ 			CastMemberID targetMember = d.asMemberID();
++			if (id == 1 && movie->getMacName().hasPrefix("05"))
++				warning("MULLEDIAG 05 sprite 1 member <- %s (%s), was %s", d.asString(true).c_str(), targetMember.asString().c_str(), sprite->_castId.asString().c_str());
+ 
+ 			if (targetMember != sprite->_castId) {
+ 				channel->setCast(targetMember);
+-- 
+2.54.0 (Apple Git-157)
+

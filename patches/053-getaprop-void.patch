@@ -1,0 +1,29 @@
+From d9a0d07b2d37144d11c055b5505dcede65cc45b8 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 19:09:36 +0200
+Subject: [PATCH] director: getaProp on a non-list returns VOID instead of
+ halting
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-builtins.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 31de5b4..6b63d0f 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -1141,7 +1141,9 @@ void LB::b_getaProp(int nargs) {
+ 		}
+ 		break;
+ 	default:
+-		TYPECHECK3(list, ARRAY, PARRAY, OBJECT);
++		// Don't drop into the debugger: give the script VOID and carry on
++		warning("BUILDBOT: b_getaProp: list arg should be of type ARRAY, PARRAY, or OBJECT, not %s", list.type2str());
++		g_lingo->push(Datum());
+ 		break;
+ 	}
+ }
+-- 
+2.54.0 (Apple Git-157)
+

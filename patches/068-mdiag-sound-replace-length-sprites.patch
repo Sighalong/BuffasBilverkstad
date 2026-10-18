@@ -1,0 +1,76 @@
+From bb8e9583794369b750fb54001eea4284b1fd50a4 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 21:11:19 +0200
+Subject: [PATCH] diag: sound replaced on a busy channel, sound length; 04/03
+ head and Figge sprites on change
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 21 +++++++++++++++++++++
+ engines/director/sound.cpp | 11 +++++++++++
+ 2 files changed, 32 insertions(+)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index 0b0f473..5315974 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -386,6 +386,27 @@ void Score::step() {
+ 			f.close();
+ 			MDIAG(1, "shot", "%s", fn.toString(Common::Path::kNativeSeparator).c_str());
+ 		}
++		// Mulle's head/body in 04, Figge in 03: where those sprites are, on change
++		static const int yardIds[] = { 36, 37, 38, 39, 59 };
++		static const int garageIds[] = { 8, 120 };
++		bool yard = _movie->getMacName().hasPrefix("04"), garage = _movie->getMacName().hasPrefix("03");
++		if (yard || garage) {
++			Common::String desc;
++			for (int i = 0; i < (yard ? 5 : 2); i++) {
++				int id = yard ? yardIds[i] : garageIds[i];
++				Channel *ch = getChannelById(id);
++				if (!ch || !ch->_sprite)
++					continue;
++				Common::Rect bb = ch->getBbox();
++				desc += Common::String::format(" %d:%s@%d,%d[%d,%d-%d,%d]%s", id, ch->_sprite->_castId.asString().c_str(),
++					ch->getPosition().x, ch->getPosition().y, bb.left, bb.top, bb.right, bb.bottom, ch->_visible ? "" : "hidden");
++			}
++			static Common::String lastDesc;
++			if (desc != lastDesc) {
++				MDIAG(1, "sprite", "%s frame %d%s", _movie->getMacName().c_str(), _curFrameNumber, desc.c_str());
++				lastDesc = desc;
++			}
++		}
+ 	}
+ }
+ 
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 134aeb1..69a7f68 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -135,6 +135,15 @@ void DirectorSound::playStream(Audio::AudioStream &stream, int soundChannel) {
+ 
+ 	cancelFade(soundChannel);
+ 
++	// a new sound silently cuts the one still playing on this channel
++	if (isChannelActive(soundChannel)) {
++		Common::String by = "engine";
++		if (!g_lingo->_state->callstack.empty() && g_lingo->_state->callstack.back()->sp.name)
++			by = *g_lingo->_state->callstack.back()->sp.name;
++		MDIAG(1, "sound", "replace ch %d (was active) after %u ms by %s", soundChannel,
++			_mixer->getSoundElapsedTime(_channels[soundChannel]->handle), by.c_str());
++	}
++
+ 	_mixer->stopHandle(_channels[soundChannel]->handle);
+ 
+ 	setChannelDefaultVolume(soundChannel);
+@@ -225,6 +234,8 @@ void DirectorSound::playCastMember(CastMemberID memberID, int soundChannel, bool
+ 					_channels[soundChannel]->loopPtr = dynamic_cast<Audio::LoopableAudioStream *>(as);
+ 				else
+ 					_channels[soundChannel]->loopPtr = nullptr;
++				if (Audio::SeekableAudioStream *sas = dynamic_cast<Audio::SeekableAudioStream *>(as))
++					MDIAG(1, "sound", "length %s %u ms", memberID.asString().c_str(), (uint)sas->getLength().msecs());
+ 				playStream(*as, soundChannel);
+ 				debugC(5, kDebugSound, "DirectorSound::playCastMember(): playing cast ID %s, channel %d, looping %d, stopOnZero %d, forPuppet %d, volume %d", memberID.asString().c_str(), soundChannel, looping, stopOnZero, forPuppet, _channels[soundChannel]->volume);
+ 				setLastPlayedSound(soundChannel, memberID, stopOnZero);
+-- 
+2.54.0 (Apple Git-157)
+

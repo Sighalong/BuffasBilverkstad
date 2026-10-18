@@ -1,0 +1,40 @@
+From f177281fe3541ac7c659d808f9a6899d02cb4d73 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 20:25:39 +0200
+Subject: [PATCH] director: sound cue point names are Pascal strings
+
+Found by dev C (round-4 analysis): Lingo compared "Mulle" against "\x05Mulle".
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/sound.cpp | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/engines/director/castmember/sound.cpp b/engines/director/castmember/sound.cpp
+index 94613f0..c228b7f 100644
+--- a/engines/director/castmember/sound.cpp
++++ b/engines/director/castmember/sound.cpp
+@@ -134,9 +134,17 @@ void SoundCastMember::load() {
+ 
+ 					sndData->read(cuePointName, 32);
+ 					cuePointName[31] = '\0';
+-					_cuePointNames.push_back(cuePointName);
+-
+-					debugC(2, kDebugLoading, "    Cue point %d: %d (%s) in sound cast member %d", i, cuePoint, cuePointName, _castId);
++					// The name field is a Pascal string (length byte first, padded to 32 bytes).
++					// Lingo compares it by name (e.g. cuePointName = "Mulle"), so strip the length byte.
++					uint8 nameLen = (uint8)cuePointName[0];
++					Common::String cueName;
++					if (nameLen < 31)
++						cueName = Common::String(cuePointName + 1, nameLen);
++					else
++						cueName = cuePointName;
++					_cuePointNames.push_back(cueName);
++
++					debugC(2, kDebugLoading, "    Cue point %d: %d (%s) in sound cast member %d", i, cuePoint, cueName.c_str(), _castId);
+ 				}
+ 			} else {
+ 				debugC(2, kDebugLoading, "SoundCastMember::load(): Ignoring unknown tag '%s' in sound cast member %d", tag2str(it.tag), _castId);
+-- 
+2.54.0 (Apple Git-157)
+

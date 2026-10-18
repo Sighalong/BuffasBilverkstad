@@ -1,0 +1,84 @@
+From 8b586b91c268e9a6e388b9c588afda0add5bf7a9 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 20:01:23 +0200
+Subject: [PATCH] director: D6 mouseEnter/Leave go to the topmost sprite with a
+ rollover handler
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/events.cpp |  6 +++++-
+ engines/director/score.cpp  | 28 ++++++++++++++++++++++++++++
+ engines/director/score.h    |  1 +
+ 3 files changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/events.cpp b/engines/director/events.cpp
+index 6aee815..4b06348 100644
+--- a/engines/director/events.cpp
++++ b/engines/director/events.cpp
+@@ -344,7 +344,11 @@ bool Movie::processSysEvent(Common::Event &event) {
+ 			// Queue as input events: a mouse move seen while Lingo is mid-handler
+ 			// (execute() polls events every 100 ops) must not run handlers nested
+ 			// inside it, or the nested execute() also runs the outer frames.
+-			if (spriteId > 0) {
++			uint16 rolloverId = spriteId;
++			if (g_director->getVersion() >= 600 && event.mouse != Common::Point(-1, -1))
++				rolloverId = _score->getRolloverSpriteIDFromPos(event.mouse);
++			if (rolloverId > 0) {
++				uint16 spriteId = rolloverId;
+ 				if (spriteId != _lastEnteredChannelId) {
+ 					if (_lastEnteredChannelId) {
+ 						processInputEvent(kEventMouseLeave, _lastEnteredChannelId, pos);
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index f9296c6..cc6f92f 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -1738,6 +1738,34 @@ uint16 Score::getMouseSpriteIDFromPos(Common::Point pos) {
+ 	return 0;
+ }
+ 
++static bool channelHandlesRollover(Channel *channel) {
++	for (uint i = 0; i < channel->_scriptInstanceList.size(); i++) {
++		Datum &inst = channel->_scriptInstanceList[i];
++		if (inst.type != OBJECT)
++			continue;
++		if (inst.u.obj->getMethod("mouseEnter").type != VOIDSYM ||
++				inst.u.obj->getMethod("mouseLeave").type != VOIDSYM ||
++				inst.u.obj->getMethod("mouseWithin").type != VOIDSYM)
++			return true;
++	}
++	return false;
++}
++
++// D6 mouseEnter/mouseLeave go to the topmost sprite that has a rollover handler.
++// A sprite with only click handlers (Mulle Meck's dragged part) must not hide the
++// door sprite under it, or the door never opens.
++uint16 Score::getRolloverSpriteIDFromPos(Common::Point pos) {
++	for (int i = _channels.size() - 1; i >= 0; i--) {
++		CollisionTest test = _channels[i]->isMouseIn(pos);
++		if (test == kCollisionYes && _channels[i]->_sprite->respondsToMouse()) {
++			if (channelHandlesRollover(_channels[i]) || _channels[i]->_scriptInstanceList.empty())
++				return i;
++		} else if (test == kCollisionHole)
++			break;
++	}
++	return 0;
++}
++
+ uint16 Score::getActiveSpriteIDFromPos(Common::Point pos) {
+ 	for (int i = _channels.size() - 1; i >= 0; i--) {
+ 		CollisionTest test = _channels[i]->isMouseIn(pos);
+diff --git a/engines/director/score.h b/engines/director/score.h
+index 77f2a17..c85d5e4 100644
+--- a/engines/director/score.h
++++ b/engines/director/score.h
+@@ -120,6 +120,7 @@ public:
+ 	uint16 getSpriteIDFromPos(Common::Point pos);
+ 	uint16 getMouseSpriteIDFromPos(Common::Point pos);
+ 	uint16 getActiveSpriteIDFromPos(Common::Point pos);
++	uint16 getRolloverSpriteIDFromPos(Common::Point pos);
+ 	bool checkSpriteRollOver(uint16 spriteId, Common::Point pos);
+ 	uint16 getRollOverSpriteIDFromPos(Common::Point pos);
+ 	Common::Array<Channel *> getSpriteIntersections(const Common::Rect &r);
+-- 
+2.54.0 (Apple Git-157)
+

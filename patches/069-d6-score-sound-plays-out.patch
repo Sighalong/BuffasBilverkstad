@@ -1,0 +1,28 @@
+From 0498f8fd52030c3828e8ad7fc494c1d6e048a2a4 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 21:12:40 +0200
+Subject: [PATCH] director: D6 score sounds play to their end after their span
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/sound.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 69a7f68..70d39be 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -214,6 +214,10 @@ void DirectorSound::playCastMember(CastMemberID memberID, int soundChannel, bool
+ 					// We don't want to stop it if this channel's cast member changes to 0.
+ 					stopOnZero = false;
+ 				}
++				// D6 lets a score sound play to its end after its span (Mulle Meck
++				// intro: the closing sound 457 at 10.DXR frame 101 was cut at 0.6 s).
++				if (!forPuppet && g_director->getVersion() >= 600)
++					stopOnZero = false;
+ 
+ 				AudioDecoder *ad = ((SoundCastMember *)soundCast)->_audio;
+ 				if (!ad) {
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,57 @@
+From 2749668f8b29c43ac3ec2ea17e0015f16e1cc718 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:15:14 +0200
+Subject: [PATCH] 0029 inside()/intersect() treat inverted rects as empty
+ instead of asserting (crash in rect.h)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-builtins.cpp | 24 +++++++++++++++--------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 009421e..31de5b4 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -3873,11 +3873,16 @@ void LB::b_intersect(int nargs) {
+ 	Datum r1 = g_lingo->pop();
+ 	TYPECHECK(r1, RECT);
+ 	TYPECHECK(r2, RECT);
+-	Common::Rect rect1(r1.u.farr->arr[0].asInt(), r1.u.farr->arr[1].asInt(), r1.u.farr->arr[2].asInt(), r1.u.farr->arr[3].asInt());
+-	Common::Rect rect2(r2.u.farr->arr[0].asInt(), r2.u.farr->arr[1].asInt(), r2.u.farr->arr[2].asInt(), r2.u.farr->arr[3].asInt());
+-
+-	// Return the overlapping area as a rect (rect(0,0,0,0) if none).
+-	Common::Rect inter = rect1.findIntersectingRect(rect2);
++	int a[4], c[4];
++	for (int i = 0; i < 4; i++) {
++		a[i] = r1.u.farr->arr[i].asInt();
++		c[i] = r2.u.farr->arr[i].asInt();
++	}
++	// Return the overlapping area as a rect (rect(0,0,0,0) if none). An inverted
++	// rect would assert in Common::Rect, so treat it as empty
++	Common::Rect inter;
++	if (a[0] <= a[2] && a[1] <= a[3] && c[0] <= c[2] && c[1] <= c[3])
++		inter = Common::Rect(a[0], a[1], a[2], a[3]).findIntersectingRect(Common::Rect(c[0], c[1], c[2], c[3]));
+ 
+ 	d.type = RECT;
+ 	d.u.farr = new FArray;
+@@ -3932,10 +3937,13 @@ void LB::b_inside(int nargs) {
+ 		return;
+ 	}
+ 
+-	Common::Rect rect2(r2.u.farr->arr[0].asInt(), r2.u.farr->arr[1].asInt(), r2.u.farr->arr[2].asInt(), r2.u.farr->arr[3].asInt());
+-	Common::Point point1(p1.u.farr->arr[0].asInt(), p1.u.farr->arr[1].asInt());
++	// Compare directly: Common::Rect asserts on an inverted rect, which scripts
++	// can build (e.g. a snap rect shrunk past zero); Director just says FALSE
++	int l = r2.u.farr->arr[0].asInt(), t = r2.u.farr->arr[1].asInt();
++	int r = r2.u.farr->arr[2].asInt(), b = r2.u.farr->arr[3].asInt();
++	int x = p1.u.farr->arr[0].asInt(), y = p1.u.farr->arr[1].asInt();
+ 
+-	d = rect2.contains(point1);
++	d = (x >= l && x < r && y >= t && y < b) ? 1 : 0;
+ 
+ 	g_lingo->push(d);
+ }
+-- 
+2.54.0 (Apple Git-157)
+

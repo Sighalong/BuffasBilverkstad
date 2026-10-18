@@ -1,0 +1,54 @@
+From 73fc3c91f84dfb8eebf45ecb288594c395d01867 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 21:09:17 +0200
+Subject: [PATCH] director: editable text keeps its score size; log editable
+ field dims
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/channel.cpp | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/channel.cpp b/engines/director/channel.cpp
+index 35e739b..d83ce9f 100644
+--- a/engines/director/channel.cpp
++++ b/engines/director/channel.cpp
+@@ -34,6 +34,7 @@
+ #include "director/castmember/filmloop.h"
+ #include "director/castmember/movie.h"
+ #include "director/castmember/text.h"
++#include "director/mullediag.h"
+ 
+ #include "graphics/macgui/mactext.h"
+ #include "graphics/macgui/macbutton.h"
+@@ -595,11 +596,26 @@ void Channel::updateTextCast() {
+ 	if (_widget) {
+ 		Graphics::MacText *textWidget = (Graphics::MacText *)_widget;
+ 		// if we got auto expand text, then we update dims to sprite
+-		if (!textWidget->getFixDims() && (_sprite->_width != _widget->_dims.width() || _sprite->_height != _widget->_dims.height())) {
++		// An editable field keeps at least its score size, so an empty name
++		// field stays clickable over its whole box (Mulle Meck 06).
++		bool keepSize = textWidget->isEditable() &&
++			_widget->_dims.width() <= _sprite->_width && _widget->_dims.height() <= _sprite->_height;
++		if (!textWidget->getFixDims() && !keepSize && (_sprite->_width != _widget->_dims.width() || _sprite->_height != _widget->_dims.height())) {
+ 			_sprite->_width = _widget->_dims.width();
+ 			_sprite->_height = _widget->_dims.height();
+ 			setDirty();
+ 		}
++		if (textWidget->isEditable()) {
++			Common::Rect bbox = getBbox();
++			Common::String desc = Common::String::format("editable field %s sprite %dx%d bbox %d,%d-%d,%d widget %d,%d %dx%d",
++				_sprite->_castId.asString().c_str(), _sprite->_width, _sprite->_height, bbox.left, bbox.top, bbox.right, bbox.bottom,
++				_widget->_dims.left, _widget->_dims.top, _widget->_dims.width(), _widget->_dims.height());
++			static Common::String lastDesc;
++			if (desc != lastDesc) {
++				MDIAG(2, "input", "%s", desc.c_str());
++				lastDesc = desc;
++			}
++		}
+ 	}
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

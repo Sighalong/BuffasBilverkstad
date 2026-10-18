@@ -1,0 +1,46 @@
+From 5497a51f602950d0b389dc8c1b1b853a4f5e5a6a Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:58:33 +0200
+Subject: [PATCH] 0034 PrintOMatic: append*/setText/setMargins take a variable
+ arglist (08 diploma print)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/xlibs/p/printomatic.cpp | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/engines/director/lingo/xlibs/p/printomatic.cpp b/engines/director/lingo/xlibs/p/printomatic.cpp
+index eefff09..f9692e0 100644
+--- a/engines/director/lingo/xlibs/p/printomatic.cpp
++++ b/engines/director/lingo/xlibs/p/printomatic.cpp
+@@ -208,7 +208,7 @@ static MethodProto xlibMethods[] = {
+ 	{ "reset",				PrintOMaticXObj::m_reset,		 0, 0,	400 },
+ 	{ "newPage",				PrintOMaticXObj::m_newPage,		 0, 0,	400 },
+ 	{ "setPage",				PrintOMaticXObj::m_setPage,		 1, 1,	400 },
+-	{ "setMargins",				PrintOMaticXObj::m_setMargins,		 4, 4,	400 },
++	{ "setMargins",				PrintOMaticXObj::m_setMargins,		 -1, 0,	400 },
+ 	{ "setPrintableMargins",				PrintOMaticXObj::m_setPrintableMargins,		 0, 0,	400 },
+ 	{ "getPageWidth",				PrintOMaticXObj::m_getPageWidth,		 0, 0,	400 },
+ 	{ "getPageHeight",				PrintOMaticXObj::m_getPageHeight,		 0, 0,	400 },
+@@ -224,12 +224,12 @@ static MethodProto xlibMethods[] = {
+ 	{ "setTextJust",				PrintOMaticXObj::m_setTextJust,		 1, 1,	400 },
+ 	{ "setTextLineSpacing",				PrintOMaticXObj::m_setTextLineSpacing,		 1, 1,	500 },
+ 	{ "textBox",				PrintOMaticXObj::m_textBox,		 5, 5,	400 },
+-	{ "setText",				PrintOMaticXObj::m_setText,		 0, 0,	400 },
+-	{ "appendText",				PrintOMaticXObj::m_appendText,		 0, 0,	400 },
+-	{ "appendTextFile",				PrintOMaticXObj::m_appendTextFile,		 0, 0,	400 },
+-	{ "append",				PrintOMaticXObj::m_appendText,		 0, 0,	500 },
+-	{ "appendFile",				PrintOMaticXObj::m_appendTextFile,		 0, 0,	500 },
+-	{ "appendTextResource",				PrintOMaticXObj::m_appendTextResource,		 0, 0,	400 },
++	{ "setText",				PrintOMaticXObj::m_setText,		 -1, 0,	400 },
++	{ "appendText",				PrintOMaticXObj::m_appendText,		 -1, 0,	400 },
++	{ "appendTextFile",				PrintOMaticXObj::m_appendTextFile,		 -1, 0,	400 },
++	{ "append",				PrintOMaticXObj::m_appendText,		 -1, 0,	500 },
++	{ "appendFile",				PrintOMaticXObj::m_appendTextFile,		 -1, 0,	500 },
++	{ "appendTextResource",				PrintOMaticXObj::m_appendTextResource,		 -1, 0,	400 },
+ 	{ "newFrame",				PrintOMaticXObj::m_newFrame,		 2, 2,	500 },
+ 	{ "drawRect",				PrintOMaticXObj::m_drawRect,		 2, 2,	500 },
+ 	{ "drawLine",				PrintOMaticXObj::m_drawLine,		 2, 2,	500 },
+-- 
+2.54.0 (Apple Git-157)
+

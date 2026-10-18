@@ -1,0 +1,31 @@
+From d47e55624eb11cf80236116d4f56a63058fce237 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 08:56:13 +0200
+Subject: [PATCH] director: fix 0066 diag that sent D6 enterFrame twice
+ (dangling else)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index af199cb..3175776 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -898,10 +898,10 @@ void Score::update() {
+ 			uint32 te0 = g_system->getMillis(false);
+ 			if (_version >= kFileVer600)
+ 				_movie->broadcastEvent(kEventEnterFrame);
+-			if (g_system->getMillis(false) - te0 > 100)
+-				MDIAG(1, "render", "slow enterFrame %d %u ms", _curFrameNumber, g_system->getMillis(false) - te0);
+ 			else
+ 				_movie->processEvent(kEventEnterFrame);
++			if (g_system->getMillis(false) - te0 > 100)
++				MDIAG(1, "render", "slow enterFrame %d %u ms", _curFrameNumber, g_system->getMillis(false) - te0);
+ 		}
+ 	}
+ 	if (_window->frozenLingoStateCount() > count)
+-- 
+2.54.0 (Apple Git-157)
+

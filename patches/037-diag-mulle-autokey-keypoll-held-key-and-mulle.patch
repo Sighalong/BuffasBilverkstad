@@ -1,0 +1,56 @@
+From 929624b15f8acfdcbab3cd47fd8be35f160385b0 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:59:11 +0200
+Subject: [PATCH] diag: MULLE_AUTOKEY (KeyPoll held key) and MULLE_TOPOLOG
+ (topology char reads) test aids - temporary
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-code.cpp      | 7 +++++++
+ engines/director/lingo/xtras/k/keypoll.cpp | 4 ++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-code.cpp b/engines/director/lingo/lingo-code.cpp
+index 4af7d04..29db9d3 100644
+--- a/engines/director/lingo/lingo-code.cpp
++++ b/engines/director/lingo/lingo-code.cpp
+@@ -1,3 +1,4 @@
++#define FORBIDDEN_SYMBOL_EXCEPTION_getenv
+ /* ScummVM - Graphic Adventure Engine
+  *
+  * ScummVM is the legal property of its developers, whose names
+@@ -1242,6 +1243,12 @@ Datum LC::readChunkRef(const Datum &src) {
+ 	if (firstChar.asInt() != 0)
+ 		ref = LC::chunkRef(kChunkChar, firstChar.asInt(), lastChar.asInt(), ref);
+ 
++	if (getenv("MULLE_TOPOLOG") && firstChar.asInt() != 0 && src.type == STRING && src.u.s->size() > 60000) {
++		static int topoN = 0;
++		if (topoN++ < 400)
++			warning("MULLEDIAG topo char %s (type %s) -> code %d", firstChar.asString().c_str(), firstChar.type2str(), charToNum(ref.eval().asString().decode(Common::kUtf8).size() ? ref.eval().asString().decode(Common::kUtf8)[0] : 0));
++	}
++
+ 	return ref;
+ }
+ 
+diff --git a/engines/director/lingo/xtras/k/keypoll.cpp b/engines/director/lingo/xtras/k/keypoll.cpp
+index e700342..6a05672 100644
+--- a/engines/director/lingo/xtras/k/keypoll.cpp
++++ b/engines/director/lingo/xtras/k/keypoll.cpp
+@@ -1,3 +1,4 @@
++#define FORBIDDEN_SYMBOL_EXCEPTION_getenv
+ /* ScummVM - Graphic Adventure Engine
+  *
+  * ScummVM is the legal property of its developers, whose names
+@@ -158,6 +159,9 @@ void KeypollXtra::m_bgAllKeys(int nargs) {
+ 	result.u.farr = new FArray;
+ 	for (auto &it : g_keysDownMap)
+ 		result.u.farr->arr.push_back(Datum(it._key));
++	// MDIAG test aid: MULLE_AUTOKEY=<vk> reports that key as held (38 = up)
++	if (const char *ak = getenv("MULLE_AUTOKEY"))
++		result.u.farr->arr.push_back(Datum(atoi(ak)));
+ 	g_lingo->push(result);
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

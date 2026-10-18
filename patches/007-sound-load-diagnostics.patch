@@ -1,0 +1,73 @@
+From 74ae02fa8f23380bb40bed623c29109cad7a1a46 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:39:37 +0200
+Subject: [PATCH] 0007 sound load diagnostics (dev B)
+
+---
+ engines/director/castmember/sound.cpp |  3 +++
+ engines/director/sound.cpp            | 21 ++++++++++++++++++++-
+ 2 files changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/castmember/sound.cpp b/engines/director/castmember/sound.cpp
+index 4c4f6de..d245409 100644
+--- a/engines/director/castmember/sound.cpp
++++ b/engines/director/castmember/sound.cpp
+@@ -111,6 +111,7 @@ void SoundCastMember::load() {
+ 
+ 				if (!_audio) {
+ 					if (format.equalsIgnoreCase("kMoaCfFormat_AIFF")) {
++						debugC(1, kDebugSound, "SoundCastMember::load(): cast member %d uses ediM AIFF data", _castId);
+ 						_audio = new MoaStreamDecoder(format, sndData);
+ 						_loaded = true;
+ 						return;
+@@ -148,6 +149,7 @@ void SoundCastMember::load() {
+ 
+ 
+ 	if (sndFormat) {
++		debugC(1, kDebugSound, "SoundCastMember::load(): cast member %d uses sndH/sndS (Moa) data", _castId);
+ 		_audio = sndFormat;
+ 		_loaded = true;
+ 		return;
+@@ -176,6 +178,7 @@ void SoundCastMember::load() {
+ 	} else {
+ 		debugC(2, kDebugLoading, "****** Loading '%s' id: %d, %d bytes", tag2str(tag), sndId, (int)sndData->size());
+ 		SNDDecoder *audio = new SNDDecoder();
++		debugC(1, kDebugSound, "SoundCastMember::load(): cast member %d, tag '%s' sndId %d, %d bytes", _castId, tag2str(tag), sndId, (int)sndData->size());
+ 		audio->loadStream(*sndData);
+ 		_audio = audio;
+ 		_size = sndData->size();
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 0c8a316..2f4ffa6 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -937,7 +937,26 @@ bool SNDDecoder::processBufferCommand(Common::SeekableReadStreamEndian &stream)
+ 
+ 	_data = (byte *)malloc(_size);
+ 	assert(_data);
+-	stream.read(_data, _size);
++	uint32 got = stream.read(_data, _size);
++
++	// Diagnostic for silent/garbled sounds: report format and sample range
++	int peakLo = 255, peakHi = 0;
++	if (_bits == 8) {
++		for (uint32 i = 0; i < got; i++) {
++			peakLo = MIN<int>(peakLo, _data[i]);
++			peakHi = MAX<int>(peakHi, _data[i]);
++		}
++	} else if (_bits == 16) {
++		peakLo = 32767;
++		peakHi = -32768;
++		for (uint32 i = 0; i + 1 < got; i += 2) {
++			int16 v = (int16)(stream.isBE() ? READ_BE_UINT16(_data + i) : READ_LE_UINT16(_data + i));
++			peakLo = MIN<int>(peakLo, v);
++			peakHi = MAX<int>(peakHi, v);
++		}
++	}
++	debugC(1, kDebugSound, "SNDDecoder: rate %d, %d-bit, %d ch, encoding 0x%02x, %d frames, read %d/%d bytes, sample range %d..%d, loop %d-%d",
++		_rate, _bits, _channels, encoding, frameCount, got, _size, peakLo, peakHi, _loopStart, _loopEnd);
+ 
+ 	return true;
+ }
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,33 @@
+From 46c35d9ce8844d118f0d97c1b97b34cd495cb54e Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:37:36 +0200
+Subject: [PATCH] 0022 the text of an editable member picks up what was just
+ typed (car name field in 06.DXR lost every key)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/text.cpp | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index f2cd0e6..37bc3c9 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -734,6 +734,14 @@ Datum TextCastMember::getField(int field) {
+ 
+ 	switch (field) {
+ 	case kTheText:
++		{
++			// Pick up what was just typed: the member is otherwise only synced from
++			// the widget on the next redraw, and Mulle Meck's car-name field reads
++			// the text right after keyDown and writes it back
++			Graphics::MacText *widget = getWidget();
++			if (widget && widget->isEditable() && !isModified())
++				updateFromWidget(widget, true);
++		}
+ 		d = getText().encode(Common::kUtf8);
+ 		break;
+ 	case kTheTextAlign:
+-- 
+2.54.0 (Apple Git-157)
+

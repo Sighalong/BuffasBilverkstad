@@ -1,0 +1,33 @@
+From b66a42eb3d2ecdc9ebec993908f1981e4f41950b Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 19:09:36 +0200
+Subject: [PATCH] diag: log getPropertyDescriptionList defaults per behavior
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-events.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index 634b8c6..96c2a38 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -35,6 +35,7 @@
+ #include "director/castmember/movie.h"
+ #include "director/types.h"
+ #include "director/window.h"
++#include "director/mullediag.h"
+ 
+ namespace Director {
+ 
+@@ -973,6 +974,7 @@ Datum Score::createScriptInstance(BehaviorElement *behavior) {
+ 		if ((int)g_lingo->_state->callstack.size() > gpdlFrame)
+ 			g_lingo->execute(gpdlFrame);
+ 		Datum descList = g_lingo->pop();
++		MDIAG(2, "behavior", "defaults for %s: %s", behavior->toString().c_str(), descList.asString(true).substr(0, 120).c_str());
+ 		if (descList.type == PARRAY) {
+ 			for (auto &desc : descList.u.parr->arr) {
+ 				if (desc.v.type != PARRAY)
+-- 
+2.54.0 (Apple Git-157)
+

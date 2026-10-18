@@ -1,0 +1,51 @@
+From e471dc507b14c89be9e922350f4ec2256c085d65 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 09:02:16 +0200
+Subject: [PATCH] director: text foreColor also sets the run color used when
+ text is set later
+
+A cloned field kept its STXT color in _fgpalinfo, so Mulle Meck's race
+board (foreColor 149) drew black on black. Also fixes _fgpalinfo2 used
+for blue in updateFromWidget.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/text.cpp | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index 8b144fa..b33096f 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -207,8 +207,18 @@ TextCastMember::TextCastMember(Cast *cast, uint16 castId, TextCastMember &source
+ }
+ 
+ void TextCastMember::setColors(uint32 *fgcolor, uint32 *bgcolor) {
+-	if (fgcolor)
++	if (fgcolor) {
+ 		_fgcolor = *fgcolor;
++		// The run color in _ftext comes from _fgpalinfo; keep it in step, or
++		// text set afterwards keeps the old (cloned STXT) color. Mulle Meck's
++		// race board is a cloned field set to foreColor 149: black on black.
++		const byte *pal = g_director->getPalette();
++		if (pal && _fgcolor < g_director->getPaletteColorCount()) {
++			_fgpalinfo1 = pal[_fgcolor * 3] * 0x101;
++			_fgpalinfo2 = pal[_fgcolor * 3 + 1] * 0x101;
++			_fgpalinfo3 = pal[_fgcolor * 3 + 2] * 0x101;
++		}
++	}
+ 
+ 	if (bgcolor) {
+ 		_bgcolor = *bgcolor;
+@@ -669,7 +679,7 @@ void TextCastMember::updateFromWidget(Graphics::MacWidget *widget, bool spriteEd
+ 		_ptext = content;
+ 
+ 		// This string will be formatted with the default formatting
+-		Common::String format = Common::String::format("\001\016%04x%02x%04x%04x%04x%04x", _fontId, _textSlant, _fontSize, _fgpalinfo1, _fgpalinfo2, _fgpalinfo2);
++		Common::String format = Common::String::format("\001\016%04x%02x%04x%04x%04x%04x", _fontId, _textSlant, _fontSize, _fgpalinfo1, _fgpalinfo2, _fgpalinfo3);
+ 		_ftext = format;
+ 		_ftext += _ptext;
+ 	}
+-- 
+2.54.0 (Apple Git-157)
+

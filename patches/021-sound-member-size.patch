@@ -1,0 +1,28 @@
+From 03338954c8349e612f8d3029785b6cea6c738ae9 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:31:36 +0200
+Subject: [PATCH] 0021 the size of a sndH/sndS sound member is its sample data
+ size (intro speech was cut after 1.6 s)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/sound.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/engines/director/castmember/sound.cpp b/engines/director/castmember/sound.cpp
+index d245409..b87c67e 100644
+--- a/engines/director/castmember/sound.cpp
++++ b/engines/director/castmember/sound.cpp
+@@ -151,6 +151,9 @@ void SoundCastMember::load() {
+ 	if (sndFormat) {
+ 		debugC(1, kDebugSound, "SoundCastMember::load(): cast member %d uses sndH/sndS (Moa) data", _castId);
+ 		_audio = sndFormat;
++		// the size of member is the sample data size; Mulle Meck's Sound object
++		// uses it to estimate the duration and stops the sound when it runs out
++		_size = sndFormat->_size;
+ 		_loaded = true;
+ 		return;
+ 	}
+-- 
+2.54.0 (Apple Git-157)
+

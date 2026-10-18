@@ -1,0 +1,52 @@
+From d6651caaeaf9eb38f475c55cd0843126cfc1d945 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 09:35:58 +0200
+Subject: [PATCH] director: a text member set on a 0x0 placeholder sprite takes
+ its own size
+
+Mulle Meck's race board fields were put on an empty Dummy sprite and
+stayed 0x0, so the race time never showed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/channel.cpp | 4 ++++
+ engines/director/sprite.cpp  | 7 +++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/engines/director/channel.cpp b/engines/director/channel.cpp
+index d83ce9f..6343529 100644
+--- a/engines/director/channel.cpp
++++ b/engines/director/channel.cpp
+@@ -498,6 +498,10 @@ void Channel::setCast(CastMemberID memberID) {
+ 				keepDims = false;
+ 		}
+ 	}
++	// A 0x0 sprite (an empty "Dummy" placeholder) has no stretch to keep:
++	// Mulle Meck's race board field got 0x0 and never showed its time.
++	if (keepDims && (_sprite->_width <= 0 || _sprite->_height <= 0))
++		keepDims = false;
+ 	_sprite->setCast(memberID, !keepDims);
+ 
+ 	// Duplicate of the special cases in setClean.
+diff --git a/engines/director/sprite.cpp b/engines/director/sprite.cpp
+index 0212e65..a349def 100644
+--- a/engines/director/sprite.cpp
++++ b/engines/director/sprite.cpp
+@@ -641,7 +641,14 @@ void Sprite::setCast(CastMemberID memberID, bool replaceDims) {
+ 			Common::Rect dims = _cast->getInitialRect();
+ 			switch (_cast->_type) {
+ 			case kCastShape:
++				break;
+ 			case kCastText:
++				// A text member put on an empty 0x0 placeholder takes its own rect
++				// (Mulle Meck's race board fields otherwise never showed).
++				if (_width <= 0 || _height <= 0) {
++					_width = dims.width();
++					_height = dims.height();
++				}
+ 				break;
+ 			case kCastDigitalVideo:
+ 				// A video the score sizes to 0x0 is intentionally invisible (a
+-- 
+2.54.0 (Apple Git-157)
+

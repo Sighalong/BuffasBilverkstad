@@ -1,0 +1,129 @@
+From 47471269cbc8e4003474253799ec4bf8bab7ed82 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:37:29 +0200
+Subject: [PATCH] 0006 charPosToLoc and FileIO createFile (dev B)
+
+---
+ engines/director/castmember/text.cpp      | 24 ++++++++++++++++++++
+ engines/director/castmember/text.h        |  2 ++
+ engines/director/lingo/lingo-builtins.cpp | 17 ++++++++++----
+ engines/director/lingo/xlibs/f/fileio.cpp | 27 +++++++++++++++++++++--
+ 4 files changed, 64 insertions(+), 6 deletions(-)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index f31db9c..a697708 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -436,6 +436,30 @@ int TextCastMember::getLineCount() {
+ 	return 0;
+ }
+ 
++Common::Point TextCastMember::getCharLoc(int pos) {
++	Common::U32String text = getText();
++	int len = text.size();
++	pos = CLIP(pos, 1, len + 1);
++
++	Graphics::MacFont macFont(_fontId, _fontSize, _textSlant);
++	const Graphics::Font *font = g_director->_wm->_fontMan->getFont(&macFont);
++	if (!font)
++		return Common::Point(0, 0);
++
++	// Walk to the line holding the character; wrapped lines are not modelled
++	int y = 0;
++	int lineStart = 0;
++	int lineHeight = font->getFontHeight();
++	for (int i = 0; i < pos - 1; i++) {
++		if (text[i] == '\r' || text[i] == '\n') {
++			y += lineHeight;
++			lineStart = i + 1;
++		}
++	}
++	int x = lineStart < pos - 1 ? font->getStringWidth(text.substr(lineStart, pos - 1 - lineStart)) : 0;
++	return Common::Point(x, y);
++}
++
+ int TextCastMember::getLineHeight(int line) {
+ 	Graphics::MacText *target = getWidget();
+ 	if (target) {
+diff --git a/engines/director/castmember/text.h b/engines/director/castmember/text.h
+index 07dfe55..f7aa80d 100644
+--- a/engines/director/castmember/text.h
++++ b/engines/director/castmember/text.h
+@@ -67,6 +67,8 @@ public:
+ 
+ 	int getLineCount();
+ 	int getLineHeight(int line);
++	// Top-left of the 1-based character pos, relative to the member (Lingo charPosToLoc)
++	Common::Point getCharLoc(int pos);
+ 
+ 	int getTextHeight();
+ 
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 5ee3c00..c888e1b 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -4374,10 +4374,19 @@ void LB::b_windowPresent(int nargs) {
+ }
+ 
+ void LB::b_charPosToLoc(int nargs) {
+-	g_lingo->printSTUBWithArglist("b_charPosToLoc", nargs);
+-	g_lingo->dropStack(nargs);
+-	Datum res(Common::Point(0, 0));
+-	g_lingo->push(res);
++	ARGNUMCHECK(2);
++	Datum pos = g_lingo->pop();
++	Datum castRef = g_lingo->pop();
++	Common::Point loc(0, 0);
++
++	CastMember *member = nullptr;
++	if (castRef.type == CASTREF)
++		member = g_director->getCurrentMovie()->getCastMember(*castRef.u.cast);
++	if (member && member->_type == kCastText)
++		loc = ((TextCastMember *)member)->getCharLoc(pos.asInt());
++	else
++		warning("b_charPosToLoc: expected a text member");
++	g_lingo->push(Datum(loc));
+ }
+ 
+ void LB::b_linePosToLocV(int nargs) {
+diff --git a/engines/director/lingo/xlibs/f/fileio.cpp b/engines/director/lingo/xlibs/f/fileio.cpp
+index 76a2ccc..5c7acaa 100644
+--- a/engines/director/lingo/xlibs/f/fileio.cpp
++++ b/engines/director/lingo/xlibs/f/fileio.cpp
+@@ -419,8 +419,31 @@ void FileIO::m_closeFile(int nargs) {
+ 	me->clear();
+ }
+ 
+-// FIXME: split out filename-to-savegame logic from open() so we can implement createFile
+-XOBJSTUB(FileIO::m_createFile, 0)
++void FileIO::m_createFile(int nargs) {
++	FileObject *me = static_cast<FileObject *>(g_lingo->_state->me.u.obj);
++	Datum d = g_lingo->pop();
++	Common::String path = d.asString();
++
++	// Same filename-to-savegame mapping as FileObject::open()
++	if (!path.hasSuffixIgnoreCase(".txt"))
++		path += ".txt";
++	Common::String filename = lastPathComponent(path, g_director->_dirSeparator);
++	Common::String prefix = savePrefix();
++	if (!filename.hasPrefixIgnoreCase(prefix))
++		filename = prefix + filename;
++
++	FileIOError err = kErrorNone;
++	Common::OutSaveFile *outFile = g_system->getSavefileManager()->openForSaving(filename, false);
++	if (outFile) {
++		outFile->finalize();
++		delete outFile;
++		((SavedArchive *)SearchMan.getArchive(kSavedFilesArchive))->_addFile(filename);
++	} else {
++		err = kErrorIO;
++	}
++	me->_lastError = err;
++	g_lingo->push(Datum(err));
++}
+ 
+ void FileIO::m_displayOpen(int nargs) {
+ 	g_lingo->push(getFileNameFromModal(false, Common::String(), Common::String(), "txt"));
+-- 
+2.54.0 (Apple Git-157)
+

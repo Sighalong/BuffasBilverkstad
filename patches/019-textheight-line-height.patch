@@ -1,0 +1,42 @@
+From 920311da91096047141ee650cfeeeb562eb7e19b Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:19:56 +0200
+Subject: [PATCH] 0019 textHeight returns full line height (font height +
+ leading), fixes name list always picking last line
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/text.cpp | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index b622a03..f2cd0e6 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -489,11 +489,19 @@ int TextCastMember::getLineHeight(int line) {
+ 
+ // D4 dictionary book said this is line spacing
+ int TextCastMember::getTextHeight() {
++	// Lingo's textHeight is the height of one line in pixels (font height plus
++	// leading), not just the leading. Scripts divide by it to map mouse position
++	// to a line number (e.g. the name list in the save/load screen).
++	int leading = _lineSpacing;
+ 	Graphics::MacText *target = getWidget();
+-	if (target) {
+-		return target->getLineSpacing();
+-	}
+-	return _lineSpacing;
++	if (target)
++		leading = target->getLineSpacing();
++
++	Graphics::MacFont macFont(_fontId, _fontSize, _textSlant);
++	const Graphics::Font *font = g_director->_wm->_fontMan->getFont(&macFont);
++	if (!font)
++		return MAX(leading, 1);
++	return font->getFontHeight() + leading;
+ }
+ 
+ Common::String TextCastMember::getTextFont() {
+-- 
+2.54.0 (Apple Git-157)
+

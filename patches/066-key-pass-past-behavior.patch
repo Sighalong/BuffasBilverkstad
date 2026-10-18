@@ -1,0 +1,29 @@
+From 8e742816ec6bdc19ef13cc428531e8fb36c03c47 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 21:09:17 +0200
+Subject: [PATCH] director: a behavior without a key handler passes
+ keyDown/keyUp on to the movie
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-events.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index 186ac52..c8a0be8 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -865,6 +865,10 @@ bool Lingo::processEvent(LEvent event, ScriptType st, CastMemberID scriptId, int
+ 			LC::call(_eventHandlerTypes[event], objArgs, false);
+ 			return execute();
+ 		} else {
++			// A behavior without a key handler doesn't handle the key: let the
++			// frame and movie keyDown see it (Mulle Meck 05 steering).
++			if (event == kEventKeyDown || event == kEventKeyUp)
++				_passEvent = true;
+ 			return true;
+ 		}
+ 	}
+-- 
+2.54.0 (Apple Git-157)
+

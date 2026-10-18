@@ -1,0 +1,115 @@
+From ba1dff79caa021e48daee7cb415a27c79f420737 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 08:41:52 +0200
+Subject: [PATCH] director: hold a D6 movie change while a just-started Lingo
+ sound plays (max 2.5 s)
+
+Mulle Meck 04 starts the engine sound and goes to 05 at once; on CD the
+load time kept the ignition screen up with the sound playing.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/sound.cpp  | 21 +++++++++++++++++++++
+ engines/director/sound.h    |  5 ++++-
+ engines/director/window.cpp | 10 ++++++++++
+ engines/director/window.h   |  1 +
+ 4 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 70d39be..894f12c 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -155,6 +155,27 @@ void DirectorSound::playStream(Audio::AudioStream &stream, int soundChannel) {
+ 		_mixer->setChannelRate(_channels[soundChannel]->handle, _channels[soundChannel]->originalRate*_channels[soundChannel]->pitchShiftPercent/100);
+ 	}
+ 	_channels[soundChannel]->fromLastMovie = false;
++	Audio::SeekableAudioStream *sas = dynamic_cast<Audio::SeekableAudioStream *>(&stream);
++	_channels[soundChannel]->lengthMs = sas ? sas->getLength().msecs() : 0;
++}
++
++uint32 DirectorSound::movieChangeHoldMs() {
++	// On CD the next movie took a second or more to load, and a sound the
++	// script just started (Mulle Meck 04 ignition: engine sound, then go to
++	// 05 at once) played over the old screen meanwhile.
++	uint32 hold = 0;
++	for (auto &it : _channels) {
++		SoundChannel *ch = it._value;
++		if (!ch->lengthMs || ch->puppet.type != kSoundCast)
++			continue;
++		if (!_mixer->isSoundHandleActive(ch->handle))
++			continue;
++		uint32 elapsed = _mixer->getSoundElapsedTime(ch->handle);
++		if (elapsed > 300 || elapsed >= ch->lengthMs)
++			continue;
++		hold = MAX(hold, MIN<uint32>(ch->lengthMs - elapsed, 2500));
++	}
++	return hold;
+ }
+ 
+ void DirectorSound::playSound(SoundID soundID, int soundChannel, bool forPuppet) {
+diff --git a/engines/director/sound.h b/engines/director/sound.h
+index 6c89516..97dfb08 100644
+--- a/engines/director/sound.h
++++ b/engines/director/sound.h
+@@ -147,6 +147,7 @@ struct SoundChannel {
+ 	int originalRate;
+ 	FadeParams *fade;
+ 	int lastCuePointIndex;
++	uint32 lengthMs; // 0 when unknown or looping
+ 
+ 	// a non-zero sound ID if the channel is a puppet. i.e. it's controlled by lingo
+ 	SoundID puppet;
+@@ -162,7 +163,7 @@ struct SoundChannel {
+ 
+ 	SoundChannel(): handle(), lastPlayedSound(SoundID()), stopOnZero(true), fromLastMovie(false), volume(255), originalRate(-1),
+ 		pitchShiftPercent(100), fade(nullptr), puppet(SoundID()), newPuppet(false), movieChanged(false), loopPtr(nullptr),
+-		lastCuePointIndex(-1) {}
++		lastCuePointIndex(-1), lengthMs(0) {}
+ };
+ 
+ class DirectorSound {
+@@ -190,6 +191,8 @@ public:
+ 	SoundChannel *getChannel(int soundChannel);
+ 	void playFile(Common::String filename, int soundChannel);
+ 	void playMCI(Audio::AudioStream &stream, uint32 from, uint32 to);
++	// ms to keep the old screen up on a movie change right after a Lingo sound started
++	uint32 movieChangeHoldMs();
+ 	void playStream(Audio::AudioStream &stream, int soundChannel);
+ 	void playSound(SoundID soundId, int soundChannel, bool forPuppet = false);
+ 	void playCastMember(CastMemberID memberID, int soundChannel, bool forPuppet = false);
+diff --git a/engines/director/window.cpp b/engines/director/window.cpp
+index ef4b602..e54dadb 100644
+--- a/engines/director/window.cpp
++++ b/engines/director/window.cpp
+@@ -729,6 +729,16 @@ bool Window::step() {
+ 
+ 	// prepare next movie
+ 	if (!_nextMovie.movie.empty()) {
++		if (!_movieHoldUntil && _currentMovie && g_director->getVersion() >= 600) {
++			uint32 hold = getSoundManager()->movieChangeHoldMs();
++			if (hold) {
++				MDIAG(1, "go", "hold movie change to '%s' %u ms for a fresh sound", _nextMovie.movie.c_str(), hold);
++				_movieHoldUntil = g_system->getMillis() + hold;
++			}
++		}
++		if (_movieHoldUntil && g_system->getMillis() < _movieHoldUntil)
++			return true;
++		_movieHoldUntil = 0;
+ 		if (!loadNextMovie())
+ 			return (_vm->getGameGID() == GID_TESTALL);
+ 
+diff --git a/engines/director/window.h b/engines/director/window.h
+index 2fe08e1..4d4bf28 100644
+--- a/engines/director/window.h
++++ b/engines/director/window.h
+@@ -242,6 +242,7 @@ public:
+ 	TransParams *_puppetTransition;
+ 
+ 	MovieReference _nextMovie;
++	uint32 _movieHoldUntil = 0;
+ 	Common::List<MovieReference> _movieStack;
+ 	bool _newMovieStarted;
+ 	bool _forceReload = false; // set by `the fileName of window`: reload even if the same movie is loaded
+-- 
+2.54.0 (Apple Git-157)
+

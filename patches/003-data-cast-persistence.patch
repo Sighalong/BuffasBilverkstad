@@ -1,0 +1,206 @@
+From 739e17b0bf51ecef0c0c5182a7e9b4ca786b4c55 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:32:09 +0200
+Subject: [PATCH] 0003 data cast persistence
+
+---
+ engines/director/cast.cpp                 | 122 ++++++++++++++++++++++
+ engines/director/cast.h                   |   3 +
+ engines/director/lingo/lingo-builtins.cpp |  19 +++-
+ 3 files changed, 142 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/cast.cpp b/engines/director/cast.cpp
+index 2426f2e..212a0df 100644
+--- a/engines/director/cast.cpp
++++ b/engines/director/cast.cpp
+@@ -22,6 +22,8 @@
+ #include "common/config-manager.h"
+ #include "common/file.h"
+ #include "common/macresman.h"
++#include "common/savefile.h"
++#include "common/system.h"
+ #include "common/memstream.h"
+ #include "common/substream.h"
+ 
+@@ -55,6 +57,8 @@
+ #include "director/castmember/text.h"
+ #include "director/castmember/transition.h"
+ #include "director/castmember/xtra.h"
++#include "director/lingo/lingo.h"
++#include "director/lingo/lingo-the.h"
+ #include "director/lingo/lingo-codegen.h"
+ 
+ #include "director/lingo/lingodec/context.h"
+@@ -955,6 +959,124 @@ void Cast::loadCast() {
+ 	if (_castArchive->hasResource(MKTAG('S', 'C', 'R', 'F'), -1)) {
+ 		debugC(4, kDebugLoading, "'SCRF' resource skipped");
+ 	}
++
++	loadRuntimeData();
++}
++
++static Common::String runtimeDataFileName(const Common::String &castName) {
++	Common::String name = castName;
++	name.toLowercase();
++	return "mulle-" + name + ".sav";
++}
++
++static void writeSaveString(Common::WriteStream *out, const Common::String &s) {
++	out->writeUint32LE(s.size());
++	out->write(s.c_str(), s.size());
++}
++
++static bool readSaveString(Common::ReadStream *in, Common::String &s) {
++	uint32 len = in->readUint32LE();
++	if (in->err() || in->eos() || len > 64 * 1024 * 1024)
++		return false;
++	char *buf = new char[len + 1];
++	uint32 got = in->read(buf, len);
++	buf[got] = 0;
++	s = Common::String(buf, got);
++	delete[] buf;
++	return got == len;
++}
++
++bool Cast::saveRuntimeData() {
++	// Only the game's "data" cast (DATA.CST) is a save database
++	if (!_castName.equalsIgnoreCase("data") || !_loadedCast)
++		return false;
++
++	Common::Array<int> ids;
++	for (auto &it : *_loadedCast) {
++		CastMember *member = it._value;
++		CastMemberInfo *info = getCastMemberInfo(it._key);
++		if (member && member->_type == kCastText && info && !info->name.empty())
++			ids.push_back(it._key);
++	}
++	Common::sort(ids.begin(), ids.end());
++
++	Common::String fileName = runtimeDataFileName(_castName);
++	Common::String tmpName = fileName + ".tmp";
++	Common::OutSaveFile *out = g_system->getSavefileManager()->openForSaving(tmpName, false);
++	if (!out) {
++		warning("Cast::saveRuntimeData(): could not open %s for writing", tmpName.c_str());
++		return false;
++	}
++	out->writeUint32BE(MKTAG('M', 'M', 'S', '1'));
++	out->writeUint32LE(ids.size());
++	for (int id : ids) {
++		out->writeUint32LE(id);
++		writeSaveString(out, getCastMemberInfo(id)->name);
++		writeSaveString(out, _loadedCast->getVal(id)->getField(kTheText).asString());
++	}
++	out->finalize();
++	bool ok = !out->err();
++	delete out;
++	if (ok) {
++		// Replace the old file only after the new one is complete
++		g_system->getSavefileManager()->removeSavefile(fileName);
++		ok = g_system->getSavefileManager()->renameSavefile(tmpName, fileName, false);
++	}
++	if (!ok)
++		warning("Cast::saveRuntimeData(): could not write %s", fileName.c_str());
++	else
++		debugC(1, kDebugSaving, "Cast::saveRuntimeData(): saved %d members to %s", ids.size(), fileName.c_str());
++	return ok;
++}
++
++void Cast::loadRuntimeData() {
++	if (!_castName.equalsIgnoreCase("data") || !_loadedCast)
++		return;
++
++	Common::InSaveFile *in = g_system->getSavefileManager()->openForLoading(runtimeDataFileName(_castName));
++	if (!in)
++		return;
++	if (in->readUint32BE() != MKTAG('M', 'M', 'S', '1')) {
++		warning("Cast::loadRuntimeData(): bad save file magic");
++		delete in;
++		return;
++	}
++	uint32 count = in->readUint32LE();
++	uint32 restored = 0;
++	for (uint32 i = 0; i < count; i++) {
++		int id = in->readUint32LE();
++		Common::String name, text;
++		if (!readSaveString(in, name) || !readSaveString(in, text)) {
++			warning("Cast::loadRuntimeData(): truncated save file");
++			break;
++		}
++		CastMember *member = getCastMemberByNameAndType(name, kCastText);
++		if (!member) {
++			// A member the game created at runtime (e.g. a new player's database)
++			CastMember *source = nullptr;
++			for (auto &it : *_loadedCast) {
++				if (it._value && it._value->_type == kCastText) {
++					source = it._value;
++					break;
++				}
++			}
++			if (!source)
++				continue;
++			if (_loadedCast->contains(id))
++				id = getNextUnusedID();
++			CastMemberInfo info;
++			info.name = name;
++			if (!duplicateCastMember(source, &info, id))
++				continue;
++			member = getCastMember(id);
++		}
++		if (member) {
++			member->setField(kTheText, Datum(text));
++			restored++;
++		}
++	}
++	delete in;
++	debugC(1, kDebugSaving, "Cast::loadRuntimeData(): restored %d of %d members", restored, count);
+ }
+ 
+ // Members without a version-capable writer, and members whose in-memory
+diff --git a/engines/director/cast.h b/engines/director/cast.h
+index 61df273..908c017 100644
+--- a/engines/director/cast.h
++++ b/engines/director/cast.h
+@@ -139,6 +139,9 @@ public:
+ 	Common::String getVideoPath(int castId);
+ 	Common::SeekableReadStreamEndian *getResource(uint32 tag, uint16 id);
+ 	void rebuildCastNameCache();
++	// Persist/restore the text members of the "data" cast (the game's save database)
++	bool saveRuntimeData();
++	void loadRuntimeData();
+ 
+ 	// release all castmember's widget, should be called when we are changing movie.
+ 	// because widget is handled by channel, thus we should clear all of those run-time info when we are switching the movie. (because we will create new widgets for cast)
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 0ff9998..5ee3c00 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -1830,9 +1830,24 @@ void LB::b_openXlib(int nargs) {
+ }
+ 
+ void LB::b_save(int nargs) {
+-	g_lingo->printSTUBWithArglist("b_save", nargs);
++	// save(castLib "data") persists the game's text-member database; the
++	// engine reloads it over DATA.CST whenever that cast is loaded.
++	Datum d = g_lingo->pop();
++	if (nargs > 1)
++		g_lingo->dropStack(nargs - 1);
+ 
+-	g_lingo->dropStack(nargs);
++	Movie *movie = g_director->getCurrentMovie();
++	int castLib = -1;
++	if (d.type == CASTLIBREF)
++		castLib = d.u.i;
++	else if (d.type == INT)
++		castLib = d.u.i;
++	else if (d.type == STRING)
++		castLib = movie->getCastLibIDByName(d.asString());
++	if (movie && movie->getCasts()->contains(castLib))
++		movie->getCasts()->getVal(castLib)->saveRuntimeData();
++	else
++		warning("b_save: unsupported argument %s", d.asString(true).c_str());
+ }
+ 
+ void LB::b_saveMovie(int nargs) {
+-- 
+2.54.0 (Apple Git-157)
+

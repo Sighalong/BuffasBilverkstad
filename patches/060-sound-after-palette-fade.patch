@@ -1,0 +1,57 @@
+From 63bbf6bb212ee69f1e627225e778411e109671bb Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 20:03:44 +0200
+Subject: [PATCH] director: start a frame's sound after its blocking palette
+ fade
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index cc6f92f..bce6947 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -910,8 +910,15 @@ void Score::renderFrame(uint16 frameId, RenderMode mode, bool sound1Changed, boo
+ 	if (_window->_newMovieStarted)
+ 		renderCursor(_movie->getWindow()->getMousePos(), true);
+ 
+-	// If we have transitions, sounds start in parallel
+-	playSoundChannel(false, sound1Changed, sound2Changed);
++	// If we have transitions, sounds start in parallel. A blocking palette
++	// fade comes first, though: Mulle Meck 10.DXR fades for ~8 s and its intro
++	// animation follows the cue points of the sound in that frame.
++	const PaletteInfo &pal = _currentFrame->_mainChannels.palette;
++	bool soundAfterFade = !_skipTransition && !_window->_playbackPaused && !_puppetPalette &&
++		_currentFrame->_mainChannels.transType == kTransNone && !pal.paletteId.isNull() &&
++		!pal.colorCycling && !pal.overTime;
++	if (!soundAfterFade)
++		playSoundChannel(false, sound1Changed, sound2Changed);
+ 
+ 	if (_skipTransition) {
+ 		incrementFilmLoops();
+@@ -923,6 +930,10 @@ void Score::renderFrame(uint16 frameId, RenderMode mode, bool sound1Changed, boo
+ 		_window->render();
+ 	} else if (!renderTransition(frameId, mode)) {
+ 		bool skip = renderPrePaletteCycle(mode);
++		if (soundAfterFade) {
++			playSoundChannel(false, sound1Changed, sound2Changed);
++			soundAfterFade = false;
++		}
+ 		setLastPalette();
+ 		updateSprites(mode);
+ 		incrementFilmLoops();
+@@ -931,6 +942,9 @@ void Score::renderFrame(uint16 frameId, RenderMode mode, bool sound1Changed, boo
+ 			renderPaletteCycle(mode);
+ 	}
+ 
++	if (soundAfterFade) // a puppet transition took the other branch
++		playSoundChannel(false, sound1Changed, sound2Changed);
++
+ 	playQueuedSound(); // this is currently only used in FPlayXObj
+ 
+ 	if (_cursorDirty) {
+-- 
+2.54.0 (Apple Git-157)
+

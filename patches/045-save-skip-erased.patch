@@ -1,0 +1,27 @@
+From a340c11b9411b2ee4a290b8c92bd22d1a5a9a11a Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:19:44 +0200
+Subject: [PATCH] director: don't persist erased members in the Mulle data save
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/cast.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/cast.cpp b/engines/director/cast.cpp
+index 2514095..0be0f57 100644
+--- a/engines/director/cast.cpp
++++ b/engines/director/cast.cpp
+@@ -995,7 +995,8 @@ bool Cast::saveRuntimeData() {
+ 	for (auto &it : *_loadedCast) {
+ 		CastMember *member = it._value;
+ 		CastMemberInfo *info = getCastMemberInfo(it._key);
+-		if (member && member->_type == kCastText && info && !info->name.empty())
++		// erase(member) only flags the member; it must not outlive the session
++		if (member && member->_type == kCastText && !member->_erase && info && !info->name.empty())
+ 			ids.push_back(it._key);
+ 	}
+ 	Common::sort(ids.begin(), ids.end());
+-- 
+2.54.0 (Apple Git-157)
+

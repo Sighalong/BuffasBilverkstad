@@ -1,0 +1,48 @@
+From 0eed777afa0a345543c136c0b409618df49baa6d Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:57:32 +0200
+Subject: [PATCH] director: give behavior properties their
+ getPropertyDescriptionList defaults
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-events.cpp | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index 8d549db..634b8c6 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -964,6 +964,29 @@ Datum Score::createScriptInstance(BehaviorElement *behavior) {
+ 
+ 	debugC(1, kDebugLingoExec, "   Instantiated behavior %s", behavior->toString().c_str());
+ 
++	// Director gives properties without saved parameters the #default from
++	// getPropertyDescriptionList (Mulle Meck 85.DXR: SpriteAnimBH with params '')
++	if (scr->_functionHandlers.contains("getPropertyDescriptionList")) {
++		int gpdlFrame = g_lingo->_state->callstack.size();
++		g_lingo->push(instance);
++		LC::call("getPropertyDescriptionList", 1, true);
++		if ((int)g_lingo->_state->callstack.size() > gpdlFrame)
++			g_lingo->execute(gpdlFrame);
++		Datum descList = g_lingo->pop();
++		if (descList.type == PARRAY) {
++			for (auto &desc : descList.u.parr->arr) {
++				if (desc.v.type != PARRAY)
++					continue;
++				for (auto &field : desc.v.u.parr->arr) {
++					if (field.p.type == SYMBOL && field.p.u.s->equalsIgnoreCase("default")) {
++						instance.u.obj->setProp(desc.p.asString(), field.v);
++						break;
++					}
++				}
++			}
++		}
++	}
++
+ 	// No initializer, we are done
+ 	if (behavior->initializerIndex == 0)
+ 		return instance;
+-- 
+2.54.0 (Apple Git-157)
+

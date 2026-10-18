@@ -1,0 +1,23 @@
+--- SDL2-2.30.12/src/video/cocoa/SDL_cocoamouse.m	2025-01-01 16:48:45
++++ SDL2-2.30.12/src/video/cocoa/SDL_cocoamouse.m	2026-10-17 15:38:28
+@@ -212,8 +212,20 @@
+ static int Cocoa_ShowCursor(SDL_Cursor * cursor)
+ { @autoreleasepool
+ {
++    /* Mulle Meck: cursor rects alone left the system arrow visible over the
++       game (SDL_ShowCursor(SDL_DISABLE) had no effect), so also hide it
++       explicitly, keeping NSCursor hide/unhide balanced. */
++    static BOOL mulleCursorHidden = NO;
+     SDL_VideoDevice *device = SDL_GetVideoDevice();
+     SDL_Window *window = (device ? device->windows : NULL);
++    if (cursor == NULL && !mulleCursorHidden) {
++        [NSCursor hide];
++        mulleCursorHidden = YES;
++    } else if (cursor != NULL && mulleCursorHidden) {
++        [NSCursor unhide];
++        mulleCursorHidden = NO;
++    }
++
+     for (; window != NULL; window = window->next) {
+         SDL_WindowData *driverdata = (__bridge SDL_WindowData *)window->driverdata;
+         if (driverdata) {

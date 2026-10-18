@@ -1,0 +1,133 @@
+From ea9eed8ccfafe322a57405afbd3250bd96fdd339 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:32:09 +0200
+Subject: [PATCH] 0002 keypoll
+
+---
+ engines/director/events.cpp                |  3 ++
+ engines/director/lingo/xtras/k/keypoll.cpp | 58 ++++++++++++++++------
+ engines/director/lingo/xtras/k/keypoll.h   |  1 +
+ 3 files changed, 46 insertions(+), 16 deletions(-)
+
+diff --git a/engines/director/events.cpp b/engines/director/events.cpp
+index f843756..b957d9f 100644
+--- a/engines/director/events.cpp
++++ b/engines/director/events.cpp
+@@ -38,6 +38,7 @@
+ #include "director/window.h"
+ #include "director/castmember/castmember.h"
+ #include "director/debugger/debugtools.h"
++#include "director/lingo/xtras/k/keypoll.h"
+ 
+ namespace Director {
+ 
+@@ -336,6 +337,7 @@ bool Movie::processSysEvent(Common::Event &event) {
+ 		return result;
+ 
+ 	case Common::EVENT_KEYDOWN:
++		KeypollXtra::keyEvent(event.kbd.keycode, true);
+ 		_vm->_keyCode = _vm->_KeyCodes.contains(event.kbd.keycode) ? _vm->_KeyCodes[event.kbd.keycode] : 0;
+ 		_vm->_key = event.kbd.ascii;
+ 		// While most non-letter keys don't affect "the keyPress", there
+@@ -378,6 +380,7 @@ bool Movie::processSysEvent(Common::Event &event) {
+ 		return result;
+ 
+ 	case Common::EVENT_KEYUP:
++		KeypollXtra::keyEvent(event.kbd.keycode, false);
+ 		result = processInputEvent(kEventKeyUp, sc->getSpriteIDOfActiveWidget());
+ 		_vm->_keyFlags = event.kbd.flags;
+ 		return result;
+diff --git a/engines/director/lingo/xtras/k/keypoll.cpp b/engines/director/lingo/xtras/k/keypoll.cpp
+index 07468fd..e700342 100644
+--- a/engines/director/lingo/xtras/k/keypoll.cpp
++++ b/engines/director/lingo/xtras/k/keypoll.cpp
+@@ -52,6 +52,37 @@ new object me
+ 
+ namespace Director {
+ 
++// Windows virtual-key codes of the keys currently held, fed by Window::processEvent.
++static Common::HashMap<int, bool> g_keysDownMap;
++
++void KeypollXtra::keyEvent(Common::KeyCode keycode, bool down) {
++	int vk;
++	switch (keycode) {
++	case Common::KEYCODE_LEFT: vk = 37; break;
++	case Common::KEYCODE_UP: vk = 38; break;
++	case Common::KEYCODE_RIGHT: vk = 39; break;
++	case Common::KEYCODE_DOWN: vk = 40; break;
++	case Common::KEYCODE_RETURN: vk = 13; break;
++	case Common::KEYCODE_ESCAPE: vk = 27; break;
++	case Common::KEYCODE_BACKSPACE: vk = 8; break;
++	case Common::KEYCODE_TAB: vk = 9; break;
++	case Common::KEYCODE_SPACE: vk = 32; break;
++	case Common::KEYCODE_LSHIFT: case Common::KEYCODE_RSHIFT: vk = 16; break;
++	case Common::KEYCODE_LCTRL: case Common::KEYCODE_RCTRL: vk = 17; break;
++	default:
++		if (keycode >= Common::KEYCODE_a && keycode <= Common::KEYCODE_z)
++			vk = 'A' + (keycode - Common::KEYCODE_a);
++		else if (keycode >= Common::KEYCODE_0 && keycode <= Common::KEYCODE_9)
++			vk = '0' + (keycode - Common::KEYCODE_0);
++		else
++			return;
++	}
++	if (down)
++		g_keysDownMap[vk] = true;
++	else
++		g_keysDownMap.erase(vk);
++}
++
+ const char *const KeypollXtra::xlibName = "Keypoll";
+ const XlibFileDesc KeypollXtra::fileNames[] = {
+ 	{ "keypoll",   nullptr },
+@@ -114,25 +145,20 @@ XOBJSTUB(KeypollXtra::m_xtra, 0)
+ void KeypollXtra::m_bgOneKey(int nargs) {
+ 	ARGNUMCHECK(1);
+ 
+-	Common::Event event;
+-
+ 	int requestedKey = g_lingo->pop().asInt();
+ 
+-	while (g_system->getEventManager()->pollEvent(event)) {
+-		switch (event.type) {
+-		case Common::EVENT_KEYDOWN:
+-			if (event.kbd.keycode == requestedKey) {
+-				g_lingo->push(1);
+-				return;
+-			}
+-		default:
+-			break;
+-		}
+-	}
+-
+-	g_lingo->push(0);
++	g_lingo->push(Datum(g_keysDownMap.contains(requestedKey) ? 1 : 0));
+ }
+ 
+-XOBJSTUB(KeypollXtra::m_bgAllKeys, 0)
++void KeypollXtra::m_bgAllKeys(int nargs) {
++	ARGNUMCHECK(0);
++
++	Datum result;
++	result.type = ARRAY;
++	result.u.farr = new FArray;
++	for (auto &it : g_keysDownMap)
++		result.u.farr->arr.push_back(Datum(it._key));
++	g_lingo->push(result);
++}
+ 
+ }
+diff --git a/engines/director/lingo/xtras/k/keypoll.h b/engines/director/lingo/xtras/k/keypoll.h
+index d61f4da..6f34fb8 100644
+--- a/engines/director/lingo/xtras/k/keypoll.h
++++ b/engines/director/lingo/xtras/k/keypoll.h
+@@ -44,6 +44,7 @@ void m_xtra(int nargs);
+ void m_new(int nargs);
+ void m_bgOneKey(int nargs);
+ void m_bgAllKeys(int nargs);
++void keyEvent(Common::KeyCode keycode, bool down);
+ 
+ } // End of namespace KeypollXtra
+ 
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,63 @@
+From 25f5dc300cef89cb375c4ac1bf5a76db23e1eedb Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:48:18 +0200
+Subject: [PATCH] 0031 fold temporary 05 diag lines into MDIAG sprite/shot
+ areas
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-the.cpp | 6 +++---
+ engines/director/score.cpp           | 3 ++-
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-the.cpp b/engines/director/lingo/lingo-the.cpp
+index 8a427e8..9f13b09 100644
+--- a/engines/director/lingo/lingo-the.cpp
++++ b/engines/director/lingo/lingo-the.cpp
+@@ -1903,7 +1903,7 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
+ 		{
+ 			CastMemberID targetMember = d.asMemberID();
+ 			if (id == 1 && movie->getMacName().hasPrefix("05"))
+-				warning("MULLEDIAG 05 sprite 1 member <- %s (%s), was %s", d.asString(true).c_str(), targetMember.asString().c_str(), sprite->_castId.asString().c_str());
++				MDIAG(2, "sprite", "05 sprite 1 member <- %s (%s), was %s", d.asString(true).c_str(), targetMember.asString().c_str(), sprite->_castId.asString().c_str());
+ 
+ 			if (targetMember != sprite->_castId) {
+ 				channel->setCast(targetMember);
+@@ -1911,11 +1911,11 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
+ 			}
+ 			if (id == 1 && movie->getMacName().hasPrefix("05")) {
+ 				Common::Rect bb = channel->getBbox();
+-				warning("MULLEDIAG 05 sprite 1 now %dx%d bbox (%d,%d,%d,%d) stretch %d ink %d visible %d blend %d", sprite->_width, sprite->_height, bb.left, bb.top, bb.right, bb.bottom, sprite->_stretch, sprite->_ink, channel->_visible, sprite->_blendAmount);
++				MDIAG(2, "sprite", "05 sprite 1 now %dx%d bbox (%d,%d,%d,%d) stretch %d ink %d visible %d blend %d", sprite->_width, sprite->_height, bb.left, bb.top, bb.right, bb.bottom, sprite->_stretch, sprite->_ink, channel->_visible, sprite->_blendAmount);
+ 				for (uint c = 2; c < score->_channels.size(); c++) {
+ 					Channel *oc = score->_channels[c];
+ 					if (oc && oc->_sprite && oc->_sprite->_cast && oc->_visible && oc->getBbox().width() >= 500)
+-						warning("MULLEDIAG 05 covering ch %d member %s %dx%d ink %d stretch %d type %d init %dx%d puppet %d", c, oc->_sprite->_castId.asString().c_str(), oc->getBbox().width(), oc->getBbox().height(), oc->_sprite->_ink, oc->_sprite->_stretch, oc->_sprite->_cast->_type, oc->_sprite->_cast->getInitialRect().width(), oc->_sprite->_cast->getInitialRect().height(), oc->_sprite->_puppet);
++						MDIAG(2, "sprite", "05 covering ch %d member %s %dx%d ink %d stretch %d type %d init %dx%d puppet %d", c, oc->_sprite->_castId.asString().c_str(), oc->getBbox().width(), oc->getBbox().height(), oc->_sprite->_ink, oc->_sprite->_stretch, oc->_sprite->_cast->_type, oc->_sprite->_cast->getInitialRect().width(), oc->_sprite->_cast->getInitialRect().height(), oc->_sprite->_puppet);
+ 				}
+ 			}
+ 		}
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index 9f0fa6c..a70d4e1 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -370,7 +370,7 @@ void Score::step() {
+ 	if (debugChannelSet(-1, kDebugScreenshot))
+ 		screenShot();
+ 
+-	// MULLEDIAG: MULLE_SHOTS=<dir> saves the stage as BMP every 2 s (diagnostics only)
++	// Diagnostics: env MULLE_SHOTS=<dir> saves the stage as <movie>-f<frame>-<ms>.bmp at most every 2 s
+ 	static uint32 lastShot = 0;
+ 	const char *shotDir = getenv("MULLE_SHOTS");
+ 	if (shotDir && g_system->getMillis() - lastShot > 2000) {
+@@ -384,6 +384,7 @@ void Score::step() {
+ 			else
+ 				Image::writeBMP(f, raw);
+ 			f.close();
++			MDIAG(1, "shot", "%s", fn.toString(Common::Path::kNativeSeparator).c_str());
+ 		}
+ 	}
+ }
+-- 
+2.54.0 (Apple Git-157)
+

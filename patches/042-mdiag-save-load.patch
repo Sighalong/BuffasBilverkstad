@@ -1,0 +1,26 @@
+From e5f99eca995aa579a31633e9cb13652d289183ff Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:08:03 +0200
+Subject: [PATCH] 0039 MDIAG save: line when the data cast is restored from
+ mulle-data.sav
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/cast.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/engines/director/cast.cpp b/engines/director/cast.cpp
+index 1ef51c4..2514095 100644
+--- a/engines/director/cast.cpp
++++ b/engines/director/cast.cpp
+@@ -1078,6 +1078,7 @@ void Cast::loadRuntimeData() {
+ 	}
+ 	delete in;
+ 	debugC(1, kDebugSaving, "Cast::loadRuntimeData(): restored %d of %d members", restored, count);
++	MDIAG(1, "save", "load castLib '%s': restored %d of %d members", _castName.c_str(), restored, count);
+ }
+ 
+ // Members without a version-capable writer, and members whose in-memory
+-- 
+2.54.0 (Apple Git-157)
+

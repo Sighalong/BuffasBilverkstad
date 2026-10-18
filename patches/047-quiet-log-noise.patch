@@ -1,0 +1,55 @@
+From c04107c687653040ef909ac5a50a8f468bc53d04 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:24:02 +0200
+Subject: [PATCH] director: quiet routine Lingo log noise (go-self, no return
+ value, unset globals)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-code.cpp  | 2 +-
+ engines/director/lingo/lingo-funcs.cpp | 2 ++
+ engines/director/lingo/lingo.cpp       | 2 +-
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-code.cpp b/engines/director/lingo/lingo-code.cpp
+index 29db9d3..75171f2 100644
+--- a/engines/director/lingo/lingo-code.cpp
++++ b/engines/director/lingo/lingo-code.cpp
+@@ -340,7 +340,7 @@ void Lingo::popContext(bool aborting) {
+ 			// Don't warn about missing return value if there's an explicit, non-VOID default,
+ 			// e.g. for factories' mNew method.
+ 			if (fp->defaultRetVal.type == VOID) {
+-				warning("handler %s did not return value", fp->sp.name->c_str());
++				debugC(2, kDebugLingoExec, "handler %s did not return value", fp->sp.name->c_str());
+ 			}
+ 			push(fp->defaultRetVal);
+ 		}
+diff --git a/engines/director/lingo/lingo-funcs.cpp b/engines/director/lingo/lingo-funcs.cpp
+index 90dd6c2..0d96044 100644
+--- a/engines/director/lingo/lingo-funcs.cpp
++++ b/engines/director/lingo/lingo-funcs.cpp
+@@ -104,6 +104,8 @@ void Lingo::func_goto(Datum &frame, Datum &movie, bool calledfromgo) {
+ 		return;
+ 	}
+ 
++	// `go the frame` loops are routine; only log real jumps
++	if (!(frame.type == INT && frame.asInt() == score->getCurrentFrameNum()))
+ 	MDIAG(1, "go", "frame %s from frame %d", frame.asString().c_str(), score->getCurrentFrameNum());
+ 	if (frame.type == STRING) {
+ 		debugC(3, kDebugLingoExec, "Lingo::func_goto(): going to frame \"%s\"", frame.u.s->c_str());
+diff --git a/engines/director/lingo/lingo.cpp b/engines/director/lingo/lingo.cpp
+index f0eb047..19cb221 100644
+--- a/engines/director/lingo/lingo.cpp
++++ b/engines/director/lingo/lingo.cpp
+@@ -1901,7 +1901,7 @@ Datum Lingo::varFetch(const Datum &var, bool silent) {
+ 			if (_globalvars.contains(name)) {
+ 				return _globalvars[name];
+ 			}
+-			debugC(1, kDebugLingoExec, "varFetch: global variable %s not defined", name.c_str());
++			debugC(3, kDebugLingoExec, "varFetch: global variable %s not defined", name.c_str());
+ 			return result;
+ 		}
+ 		break;
+-- 
+2.54.0 (Apple Git-157)
+

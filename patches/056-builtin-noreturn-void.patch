@@ -1,0 +1,33 @@
+From faf06e1ec71469a6f29a656101c5735ee54cbd94 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 19:11:23 +0200
+Subject: [PATCH] director: builtin without a return value gives VOID instead
+ of halting
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-code.cpp | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-code.cpp b/engines/director/lingo/lingo-code.cpp
+index 479a5dc..ba29f8e 100644
+--- a/engines/director/lingo/lingo-code.cpp
++++ b/engines/director/lingo/lingo-code.cpp
+@@ -1875,8 +1875,12 @@ void LC::call(const Symbol &funcSym, int nargs, bool allowRetVal) {
+ 					warning("Builtin '%s' dropping return value: %s", funcSym.name->c_str(), extra.asString(true).c_str());
+ 				}
+ 			} else if (stackSize == stackSizeBefore) {
+-				if (allowRetVal)
+-					error("Builtin '%s' did not return value", funcSym.name->c_str());
++				// A builtin that failed its type check pushes nothing. Director shows a
++				// script error and goes on; don't drop into the debugger, give VOID.
++				if (allowRetVal) {
++					warning("Builtin '%s' did not return value, using VOID", funcSym.name->c_str());
++					g_lingo->push(Datum());
++				}
+ 			} else if (stackSize > stackSizeBefore) {
+ 				error("Builtin '%s' returned extra %d values", funcSym.name->c_str(), stackSize - stackSizeBefore);
+ 			} else {
+-- 
+2.54.0 (Apple Git-157)
+

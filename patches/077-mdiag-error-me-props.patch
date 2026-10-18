@@ -1,0 +1,38 @@
+From a6917277fb1e8c3ca40335fe42aa7735811279dd Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 09:02:16 +0200
+Subject: [PATCH] diag: dump the receiver's properties on an uncaught Lingo
+ error
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo.cpp | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/engines/director/lingo/lingo.cpp b/engines/director/lingo/lingo.cpp
+index 6c9532e..d2f0dbd 100644
+--- a/engines/director/lingo/lingo.cpp
++++ b/engines/director/lingo/lingo.cpp
+@@ -810,6 +810,19 @@ void Lingo::lingoError(const char *s, ...) {
+ 	} else {
+ 		warning("BUILDBOT: Uncaught Lingo error: %s", buf);
+ 		MDIAG(1, "error", "%s | movie %s | stack: %s", buf, _vm->getCurrentMovie() ? _vm->getCurrentMovie()->getMacName().c_str() : "?", formatCallStack(_state->pc).c_str());
++		if (_state->me.type == OBJECT && _state->me.u.obj) {
++			// The receiver's properties tell which behavior parameters led here.
++			AbstractObject *obj = _state->me.u.obj;
++			Common::String props;
++			for (uint32 i = 1; i <= obj->getPropCount() && props.size() < 1500; i++) {
++				Common::String name = obj->getPropAt(i);
++				Common::String val = obj->getProp(name).asString(true);
++				if (val.size() > 80)
++					val = val.substr(0, 80) + "...";
++				props += Common::String::format(" %s=%s", name.c_str(), val.c_str());
++			}
++			MDIAG(1, "error", "me (%s):%s", obj->getName().c_str(), props.c_str());
++		}
+ 		debug("Movie: %s", _vm->getCurrentMovie()->getArchive()->getPathName().toString(Common::Path::kNativeSeparator).c_str());
+ 		debugN("%s", formatCallStack(_state->pc).c_str());
+ 
+-- 
+2.54.0 (Apple Git-157)
+

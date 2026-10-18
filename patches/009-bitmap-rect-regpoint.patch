@@ -1,0 +1,56 @@
+From bf6c351525a8746068566c9dfcb95cf350adf9c7 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:42:13 +0200
+Subject: [PATCH] 0009 bitmap member rect and regPoint in D5+ coordinates
+
+---
+ engines/director/castmember/bitmap.cpp | 23 +++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/castmember/bitmap.cpp b/engines/director/castmember/bitmap.cpp
+index 6c928cc..5baee12 100644
+--- a/engines/director/castmember/bitmap.cpp
++++ b/engines/director/castmember/bitmap.cpp
+@@ -952,11 +952,26 @@ Datum BitmapCastMember::getField(int field) {
+ 		d = _bitsPerPixel;
+ 		break;
+ 	case kTheRegPoint:
++		// D5+ Lingo sees the regPoint relative to the bitmap's top-left corner,
++		// while _regX/_regY are stored in the same space as _initialRect
+ 		d.type = POINT;
+ 		d.u.farr = new FArray;
+-		d.u.farr->arr.push_back(_regX);
+-		d.u.farr->arr.push_back(_regY);
++		if (g_director->getVersion() >= 500) {
++			d.u.farr->arr.push_back(_regX - _initialRect.left);
++			d.u.farr->arr.push_back(_regY - _initialRect.top);
++		} else {
++			d.u.farr->arr.push_back(_regX);
++			d.u.farr->arr.push_back(_regY);
++		}
+ 		break;
++	case kTheRect:
++		// D5+: rect(0, 0, width, height). Mulle Meck's garage computes the
++		// part snap areas from this and the regPoint.
++		if (g_director->getVersion() >= 500) {
++			d = Datum(Common::Rect(_initialRect.width(), _initialRect.height()));
++			break;
++		}
++		return CastMember::getField(field);
+ 	case kThePalette:
+ 		// D5 and below return an integer for this field
+ 		if (_clut.castLib > 0) {
+@@ -1033,6 +1048,10 @@ void BitmapCastMember::setField(int field, const Datum &d) {
+ 			score->invalidateRectsForMember(this);
+ 			_regX = d.u.farr->arr[0].asInt();
+ 			_regY = d.u.farr->arr[1].asInt();
++			if (g_director->getVersion() >= 500) {
++				_regX += _initialRect.left;
++				_regY += _initialRect.top;
++			}
+ 			_modified = true;
+ 		} else {
+ 			warning("BitmapCastMember::setField(): Wrong Datum type %d for kTheRegPoint", d.type);
+-- 
+2.54.0 (Apple Git-157)
+

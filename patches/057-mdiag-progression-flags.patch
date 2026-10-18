@@ -1,0 +1,65 @@
+From 694e666ad5c8b3f1142c4e7030d9d965fd6ffaba Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 19:55:55 +0200
+Subject: [PATCH] diag: log Figge/mission progression flags; quiet no-cast
+ getShape and behavior defaults
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-events.cpp | 2 +-
+ engines/director/lingo/lingo-object.cpp | 5 +++++
+ engines/director/sprite.cpp             | 2 +-
+ 3 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index 96c2a38..186ac52 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -974,7 +974,7 @@ Datum Score::createScriptInstance(BehaviorElement *behavior) {
+ 		if ((int)g_lingo->_state->callstack.size() > gpdlFrame)
+ 			g_lingo->execute(gpdlFrame);
+ 		Datum descList = g_lingo->pop();
+-		MDIAG(2, "behavior", "defaults for %s: %s", behavior->toString().c_str(), descList.asString(true).substr(0, 120).c_str());
++		MDIAG(3, "behavior", "defaults for %s: %s", behavior->toString().c_str(), descList.asString(true).substr(0, 120).c_str());
+ 		if (descList.type == PARRAY) {
+ 			for (auto &desc : descList.u.parr->arr) {
+ 				if (desc.v.type != PARRAY)
+diff --git a/engines/director/lingo/lingo-object.cpp b/engines/director/lingo/lingo-object.cpp
+index 6c7cd5a..2e1662d 100644
+--- a/engines/director/lingo/lingo-object.cpp
++++ b/engines/director/lingo/lingo-object.cpp
+@@ -192,6 +192,7 @@
+ #include "director/lingo/xtras/s/setmouse.h"
+ #include "director/lingo/xtras/t/timextra.h"
+ #include "director/lingo/xtras/x/xsound.h"
++#include "director/mullediag.h"
+ 
+ namespace Director {
+ 
+@@ -744,6 +745,10 @@ void ScriptContext::setProp(const Common::String &propName, const Datum &value,
+ 		error("Property '%s' accessed on disposed object <%s>", propName.c_str(), Datum(this).asString(true).c_str());
+ 	}
+ 	if (_properties.contains(propName)) {
++		// Mulle Meck progression flags (Figge's and mission visits)
++		if (propName.equalsIgnoreCase("nrOfBuiltCars") || propName.equalsIgnoreCase("figgeIsComing") ||
++				propName.equalsIgnoreCase("missionIsComing"))
++			MDIAG(1, "prog", "set %s of %s to %s", propName.c_str(), getName().c_str(), value.asString(true).c_str());
+ 		_properties[propName] = value;
+ 		return;
+ 	}
+diff --git a/engines/director/sprite.cpp b/engines/director/sprite.cpp
+index 1571b28..0212e65 100644
+--- a/engines/director/sprite.cpp
++++ b/engines/director/sprite.cpp
+@@ -283,7 +283,7 @@ MacShape *Sprite::getShape() {
+ 
+ 	if (g_director->getVersion() >= 300 && shape->spriteType == kCastMemberSprite) {
+ 		if (!_cast) {
+-			warning("Sprite::getShape(): kCastMemberSprite has no cast defined");
++			debugC(2, kDebugImages, "Sprite::getShape(): kCastMemberSprite has no cast defined (member %s)", _castId.asString().c_str());
+ 			delete shape;
+ 			return nullptr;
+ 		}
+-- 
+2.54.0 (Apple Git-157)
+

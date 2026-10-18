@@ -1,0 +1,32 @@
+From 0fda4341ef2f63784565843fecb700773a44c89d Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:07:37 +0200
+Subject: [PATCH] 0038 text member: set the rect of member updates its initial
+ rect (08 diploma)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/castmember/text.cpp | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/engines/director/castmember/text.cpp b/engines/director/castmember/text.cpp
+index f1d5d34..19bca59 100644
+--- a/engines/director/castmember/text.cpp
++++ b/engines/director/castmember/text.cpp
+@@ -896,6 +896,13 @@ void TextCastMember::setField(int field, const Datum &d) {
+ 	case kTheTextFont:
+ 		setTextFont(d.asString());
+ 		return;
++	case kTheRect:
++		// 08 diploma sets the width of its text members this way
++		if (d.type == RECT && d.u.farr->arr.size() >= 4) {
++			_initialRect = Common::Rect(d.u.farr->arr[0].asInt(), d.u.farr->arr[1].asInt(), d.u.farr->arr[2].asInt(), d.u.farr->arr[3].asInt());
++			setModified(true);
++		}
++		return;
+ 	case kTheTextHeight:
+ 		_lineSpacing = d.asInt();
+ 		_modified = true;
+-- 
+2.54.0 (Apple Git-157)
+

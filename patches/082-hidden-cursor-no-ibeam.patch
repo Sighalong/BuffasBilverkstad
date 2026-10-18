@@ -1,0 +1,31 @@
+From 9a92b1afd4c89387a94bc06aeb2d97bfeb7089c4 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 10:11:13 +0200
+Subject: [PATCH] macgui: keep a hidden cursor hidden over editable text
+
+Mulle Meck hides the system cursor (cursor 200) and draws a hand sprite;
+the I-beam over the name field showed a second cursor.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ graphics/macgui/macwindowmanager.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/graphics/macgui/macwindowmanager.cpp b/graphics/macgui/macwindowmanager.cpp
+index 1279ac7..a99187a 100644
+--- a/graphics/macgui/macwindowmanager.cpp
++++ b/graphics/macgui/macwindowmanager.cpp
+@@ -1176,7 +1176,9 @@ bool MacWindowManager::processEvent(Common::Event &event) {
+ 				 ((MacWindow *)_windows[_activeWindow])->getInnerDimensions().contains(event.mouse.x, event.mouse.y)) ||
+ 				(_activeWidget && _activeWidget->isEditable() &&
+ 				 _activeWidget->getAbsoluteDimensions().contains(event.mouse.x, event.mouse.y))) {
+-			if (getCursorType() != kMacCursorBeam) {
++			// A hidden cursor stays hidden: the game draws its own (Mulle Meck's
++			// hand sprite), and an I-beam on top showed two cursors.
++			if (getCursorType() != kMacCursorBeam && getCursorType() != kMacCursorOff) {
+ 				_tempType = getCursorType();
+ 				_inEditableArea = true;
+ 				replaceCursor(kMacCursorBeam);
+-- 
+2.54.0 (Apple Git-157)
+

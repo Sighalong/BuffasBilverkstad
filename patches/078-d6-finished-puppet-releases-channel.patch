@@ -1,0 +1,110 @@
+From a50562bf50d343b71ddc5436c10167b2f1cd58e4 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 09:07:05 +0200
+Subject: [PATCH] director: D6 finished puppet sound hands its channel back to
+ the score
+
+Mulle Meck's intro part 2 (10.DXR frame 79, sound2 member 290) was
+ignored because the name screen's click sounds had left channel 2 a
+puppet. Also diags: score sound slots on change, junkyard (02) sprites
+near Mulle (head shown apart from body on re-entry).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 37 +++++++++++++++++++++++++++++++++++++
+ engines/director/sound.cpp | 10 ++++++++++
+ engines/director/sound.h   |  2 ++
+ 3 files changed, 49 insertions(+)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index 3175776..4e2ac95 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -390,6 +390,28 @@ void Score::step() {
+ 		static const int yardIds[] = { 36, 37, 38, 39, 59 };
+ 		static const int garageIds[] = { 8, 120 };
+ 		bool yard = _movie->getMacName().hasPrefix("04"), garage = _movie->getMacName().hasPrefix("03");
++		if (_movie->getMacName().hasPrefix("02")) {
++			// Junkyard: Mulle (102) and whatever covers the spot where his head
++			// was seen floating on re-entry (left of the pile)
++			Common::String desc;
++			Common::Rect headArea(20, 190, 130, 300);
++			for (uint id = 1; id < _channels.size(); id++) {
++				Channel *ch = _channels[id];
++				if (!ch || !ch->_sprite || ch->_sprite->_castId.member == 0)
++					continue;
++				Common::Rect bb = ch->getBbox();
++				if (!(id >= 100 && id <= 105) && !bb.intersects(headArea))
++					continue;
++				desc += Common::String::format(" %d:%s@%d,%d[%d,%d-%d,%d]ink%d%s%s", id, ch->_sprite->_castId.asString().c_str(),
++					ch->getPosition().x, ch->getPosition().y, bb.left, bb.top, bb.right, bb.bottom, ch->_sprite->_ink,
++					ch->_sprite->_puppet ? "P" : "", ch->_visible ? "" : "hidden");
++			}
++			static Common::String lastJunk;
++			if (desc != lastJunk) {
++				MDIAG(1, "sprite", "%s frame %d%s", _movie->getMacName().c_str(), _curFrameNumber, desc.c_str());
++				lastJunk = desc;
++			}
++		}
+ 		if (yard || garage) {
+ 			Common::String desc;
+ 			for (int i = 0; i < (yard ? 5 : 2); i++) {
+@@ -2030,6 +2052,21 @@ void Score::playSoundChannel(bool puppetOnly, bool sound1Changed, bool sound2Cha
+ 			sound1.asString().c_str(), sound1Changed, sound->isChannelPuppet(1), _currentFrame->_mainChannels.soundType1, sound->getChannelVolume(1),
+ 			sound2.asString().c_str(), sound2Changed, sound->isChannelPuppet(2), _currentFrame->_mainChannels.soundType2, sound->getChannelVolume(2));
+ 
++	if (!puppetOnly && (sound1Changed || sound2Changed) && (!sound1.isNull() || !sound2.isNull()))
++		MDIAG(1, "sound", "score frame %d sound1 %s%s sound2 %s%s", _curFrameNumber,
++			sound1.asString().c_str(), sound->isChannelPuppet(1) ? " (ch puppet, ignored)" : "",
++			sound2.asString().c_str(), sound->isChannelPuppet(2) ? " (ch puppet, ignored)" : "");
++
++	// In D6 a puppet sound that has finished no longer blocks the score's
++	// sound in that channel: Mulle Meck's intro music part 2 (10.DXR frame 79,
++	// channel 2) was lost after the name screen's click sounds.
++	if (_version >= kFileVer600 && !puppetOnly) {
++		if (sound1Changed && sound1.member > 0 && sound->releaseFinishedPuppet(1))
++			MDIAG(1, "sound", "ch 1 puppet finished, back to score for %s", sound1.asString().c_str());
++		if (sound2Changed && sound2.member > 0 && sound->releaseFinishedPuppet(2))
++			MDIAG(1, "sound", "ch 2 puppet finished, back to score for %s", sound2.asString().c_str());
++	}
++
+ 	if (sound->isChannelPuppet(1)) {
+ 		sound->playPuppetSound(1);
+ 	} else if (!puppetOnly && sound1Changed) {
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 894f12c..f977558 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -640,6 +640,16 @@ void DirectorSound::setPuppetSound(SoundID soundId, int soundChannel) {
+ 	}
+ }
+ 
++bool DirectorSound::releaseFinishedPuppet(int soundChannel) {
++	if (!assertChannel(soundChannel) || !isChannelPuppet(soundChannel))
++		return false;
++	SoundChannel *ch = _channels[soundChannel];
++	if (ch->newPuppet || isChannelActive(soundChannel))
++		return false;
++	ch->puppet = SoundID();
++	return true;
++}
++
+ void DirectorSound::disablePuppetSound(int soundChannel) {
+ 	if (!assertChannel(soundChannel))
+ 		return;
+diff --git a/engines/director/sound.h b/engines/director/sound.h
+index 97dfb08..82b9a91 100644
+--- a/engines/director/sound.h
++++ b/engines/director/sound.h
+@@ -208,6 +208,8 @@ public:
+ 
+ 	bool isChannelPuppet(int soundChannel);
+ 	void setPuppetSound(SoundID soundId, int soundChannel);
++	// D6: a puppet sound that has played out gives the channel back to the score
++	bool releaseFinishedPuppet(int soundChannel);
+ 	void disablePuppetSound(int soundChannel);
+ 	void playPuppetSound(int soundChannel);
+ 
+-- 
+2.54.0 (Apple Git-157)
+

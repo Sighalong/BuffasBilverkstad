@@ -1,0 +1,26 @@
+From 849ac279a0f49b47d0cf864862c0f6e882050b26 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 13:50:24 +0200
+Subject: [PATCH] 0012 sound channel activity log (dev B)
+
+---
+ engines/director/sound.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 1f9ace0..a156e00 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -356,6 +356,9 @@ bool DirectorSound::isChannelActive(int soundChannel) {
+ 	if (!_mixer->isSoundHandleActive(_channels[soundChannel]->handle))
+ 		return false;
+ 
++	debugC(3, kDebugSound, "DirectorSound::isChannelActive(): channel %d active, elapsed %u ms, loopPtr %p",
++		soundChannel, _mixer->getSoundElapsedTime(_channels[soundChannel]->handle), (void *)_channels[soundChannel]->loopPtr);
++
+ 	// Looped sounds are considered to be inactive after the first play
+ 	// WORKAROUND HACK
+ 	if (_channels[soundChannel]->loopPtr != nullptr)
+-- 
+2.54.0 (Apple Git-157)
+

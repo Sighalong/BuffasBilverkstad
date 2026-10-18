@@ -1,0 +1,55 @@
+From fab92730b77dc7d64083e351ab66b08af477c13a Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:00:28 +0200
+Subject: [PATCH] 0036 setting the fileName of a window reloads the movie even
+ when it is already loaded (MIAW reopen)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/window.cpp | 8 +++++++-
+ engines/director/window.h   | 1 +
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/window.cpp b/engines/director/window.cpp
+index 431f9ea..c81e965 100644
+--- a/engines/director/window.cpp
++++ b/engines/director/window.cpp
+@@ -429,8 +429,12 @@ void Window::setModal(bool modal) {
+ }
+ 
+ void Window::setFileName(Common::String filename) {
++	// Unlike `go movie`, assigning a window's fileName always (re)loads the movie
++	// (Mulle Meck reopens the same MIAW movie 13/18 and expects a fresh start).
++	_forceReload = true;
+ 	setNextMovie(filename);
+ 	ensureMovieIsLoaded();
++	_forceReload = false;
+ }
+ 
+ void Window::reset() {
+@@ -609,7 +613,9 @@ bool Window::loadNextMovie() {
+ 	Common::Path archivePath = Common::Path(_currentPath, g_director->_dirSeparator);
+ 	archivePath.appendInPlace(Common::lastPathComponent(_nextMovie.movie, g_director->_dirSeparator));
+ 
+-	if (_currentMovie && archivePath == _currentMovie->getArchive()->getPathName()) {
++	bool forceReload = _forceReload;
++	_forceReload = false;
++	if (_currentMovie && !forceReload && archivePath == _currentMovie->getArchive()->getPathName()) {
+ 		debug(0, "Window::loadNextMovie: next movie '%s' is the same as current movie, skipping load", archivePath.toString(Common::Path::kNativeSeparator).c_str());
+ 
+ 		// Jump to the correct frame
+diff --git a/engines/director/window.h b/engines/director/window.h
+index d53c081..2fe08e1 100644
+--- a/engines/director/window.h
++++ b/engines/director/window.h
+@@ -244,6 +244,7 @@ public:
+ 	MovieReference _nextMovie;
+ 	Common::List<MovieReference> _movieStack;
+ 	bool _newMovieStarted;
++	bool _forceReload = false; // set by `the fileName of window`: reload even if the same movie is loaded
+ 	bool _newMovieFirstDraw;
+ 	bool _skipFrameAdvance;
+ 	bool _resetScreen;
+-- 
+2.54.0 (Apple Git-157)
+

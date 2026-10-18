@@ -1,0 +1,33 @@
+From b9ba4c1cfc7c75ca38821ca3617d1740d48f4baa Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 20:01:23 +0200
+Subject: [PATCH] diag: log transitions
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/transitions.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/engines/director/transitions.cpp b/engines/director/transitions.cpp
+index 79d52d4..4df1e3a 100644
+--- a/engines/director/transitions.cpp
++++ b/engines/director/transitions.cpp
+@@ -29,6 +29,7 @@
+ #include "director/movie.h"
+ #include "director/score.h"
+ #include "director/window.h"
++#include "director/mullediag.h"
+ 
+ namespace Director {
+ 
+@@ -235,6 +236,7 @@ void Window::playTransition(uint frame, RenderMode mode, uint16 transDuration, u
+ 
+ 	uint32 transStartTime = g_system->getMillis();
+ 
++	MDIAG(1, "trans", "type %d duration %d chunk %d steps %d stepDuration %d", t.type, t.duration, t.chunkSize, t.steps, t.stepDuration);
+ 	debugC(2, kDebugImages, "Window::playTransition(): type: %d, duration: %d, area: %d, chunkSize: %d, steps: %d, stepDuration: %d, xStepSize: %d, yStepSize: %d, stripSize: %d, clipRect: %d %d %d %d", t.type, t.duration, t.area, t.chunkSize, t.steps, t.stepDuration, t.xStepSize, t.yStepSize, t.stripSize, clipRect.left, clipRect.top, clipRect.right, clipRect.bottom);
+ 
+ 	switch (transProps[t.type].algo) {
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,28 @@
+From acbfcab45561de7078ebf17b933fd9192b27e4d8 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:37:14 +0200
+Subject: [PATCH] 0020 FileIO openFile mode 0 opens for reading (car load)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/xlibs/f/fileio.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/lingo/xlibs/f/fileio.cpp b/engines/director/lingo/xlibs/f/fileio.cpp
+index 5c7acaa..85de781 100644
+--- a/engines/director/lingo/xlibs/f/fileio.cpp
++++ b/engines/director/lingo/xlibs/f/fileio.cpp
+@@ -396,7 +396,9 @@ void FileIO::m_openFile(int nargs) {
+ 	Common::String option;
+ 	switch (mode) {
+ 	case 0:
+-		option = "append";
++		// FileIO mode 0 is read/write on an existing file; Mulle Meck uses it only to read
++		// saved cars. Treat it as read so readFile() has a stream.
++		option = "read";
+ 		break;
+ 	case 1:
+ 		option = "read";
+-- 
+2.54.0 (Apple Git-157)
+

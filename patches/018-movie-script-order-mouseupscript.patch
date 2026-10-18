@@ -1,0 +1,105 @@
+From 31f3f93eb67b6a6862da77ca1d0e90c18b3d6ea9 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:18:26 +0200
+Subject: [PATCH] 0018 D6: lowest-numbered movie script wins for
+ events/handlers; mouseUpScript still runs on release outside the clicked
+ sprite
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/events.cpp               |  2 ++
+ engines/director/lingo/lingo-bytecode.cpp |  5 +++++
+ engines/director/lingo/lingo-events.cpp   | 23 ++++++++++++++++++-----
+ engines/director/movie.h                  |  1 +
+ 4 files changed, 26 insertions(+), 5 deletions(-)
+
+diff --git a/engines/director/events.cpp b/engines/director/events.cpp
+index 1eae7f9..d2d8b1a 100644
+--- a/engines/director/events.cpp
++++ b/engines/director/events.cpp
+@@ -326,6 +326,8 @@ bool Movie::processSysEvent(Common::Event &event) {
+ 			uint16 upSpriteId = sc->getMouseSpriteIDFromPos(pos);
+ 			if (g_director->getVersion() >= 600 && ev == kEventMouseUp &&
+ 					_lastClickedSpriteId && _lastClickedSpriteId != upSpriteId) {
++				// The mouseUpScript still runs (Mulle Meck ends part drags in it)
++				queuePrimaryInputEvent(kEventMouseUp, pos);
+ 				result = processInputEvent(kEventMouseUpOutSide, _lastClickedSpriteId, pos);
+ 			} else {
+ 				result = processInputEvent(ev, 0, pos);
+diff --git a/engines/director/lingo/lingo-bytecode.cpp b/engines/director/lingo/lingo-bytecode.cpp
+index e25e84c..56d1d2d 100644
+--- a/engines/director/lingo/lingo-bytecode.cpp
++++ b/engines/director/lingo/lingo-bytecode.cpp
+@@ -1705,8 +1705,13 @@ ScriptContext *LingoCompiler::compileLingoV4(Common::SeekableReadStreamEndian &s
+ 		// through messages, and must not shadow builtins like new(#field, ...).
+ 		if (scriptType == kMovieScript || (scriptType == kScoreScript && g_director->getVersion() < 600)) {
+ 			for (auto &it : _assemblyContext->_functionHandlers) {
++				// Like the cast window search order: the lowest member number wins
+ 				if (!_assemblyArchive->functionHandlers.contains(it._key)) {
+ 					_assemblyArchive->functionHandlers[it._key] = it._value;
++				} else {
++					ScriptContext *prev = _assemblyArchive->functionHandlers[it._key].ctx;
++					if (prev && prev->_scriptType == kMovieScript && scriptType == kMovieScript && prev->_id > _assemblyContext->_id)
++						_assemblyArchive->functionHandlers[it._key] = it._value;
+ 				}
+ 			}
+ 		}
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index c9adf39..28248db 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -417,14 +417,19 @@ void Movie::resolveScriptEvent(LingoEvent &event) {
+ 
+ 			// FIXME: shared cast movie scripts could come before main movie ones
+ 			// Movie scripts are fixed, so it's fine to look them up in advance.
++			// scriptContexts is a hash map, so pick the lowest member number
++			// explicitly (Mulle Meck 04.DXR has two movie scripts with startMovie).
+ 			for (auto &cast : _casts) {
+ 				LingoArchive *archive = cast._value->_lingoArchive;
++				int best = -1;
+ 				for (auto &it : archive->scriptContexts[kMovieScript]) {
+-					if (it._value->_eventHandlers.contains(event.event)) {
+-						event.scriptType = kMovieScript;
+-						event.scriptId = CastMemberID(it._key, cast._key);
+-						return;
+-					}
++					if (it._value->_eventHandlers.contains(event.event) && (best < 0 || (int)it._key < best))
++						best = it._key;
++				}
++				if (best >= 0) {
++					event.scriptType = kMovieScript;
++					event.scriptId = CastMemberID(best, cast._key);
++					return;
+ 				}
+ 			}
+ 			LingoArchive *sharedArchive = getSharedLingoArch();
+@@ -707,6 +712,14 @@ void Movie::queueInputEvent(LEvent event, int targetId, Common::Point pos) {
+ 	queueEvent(_inputEventQueue, event, targetId, pos);
+ }
+ 
++// Only the primary handler (the mouseUpScript etc.), no sprite/frame/movie handlers
++void Movie::queuePrimaryInputEvent(LEvent event, Common::Point pos) {
++	if (_nextEventId < 0)
++		_nextEventId = 0;
++	_nextEventId++;
++	_inputEventQueue.push(LingoEvent(event, _nextEventId, kPrimaryHandler, true, pos));
++}
++
+ 
+ bool Movie::processInputEvent(LEvent event, int targetId, Common::Point pos) {
+ 	// Route a mouse event on a movie cast member into its linked movie so that
+diff --git a/engines/director/movie.h b/engines/director/movie.h
+index e1e522b..13d30c2 100644
+--- a/engines/director/movie.h
++++ b/engines/director/movie.h
+@@ -144,6 +144,7 @@ public:
+ 	void resolveScriptEvent(LingoEvent &event);
+ 	void processEvent(LEvent event, int targetId = 0);
+ 	void queueInputEvent(LEvent event, int targetId = 0, Common::Point pos = Common::Point(-1, -1));
++	void queuePrimaryInputEvent(LEvent event, Common::Point pos);
+ 	bool processInputEvent(LEvent event, int targetId = 0, Common::Point pos = Common::Point(-1, -1));
+ 
+ 	Common::String formatMovieInfo();
+-- 
+2.54.0 (Apple Git-157)
+

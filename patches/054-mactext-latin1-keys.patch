@@ -1,0 +1,44 @@
+--- a/graphics/macgui/mactext.h
++++ b/graphics/macgui/mactext.h
+@@ -162,7 +162,7 @@
+ 	void deleteSelection();
+ 	void deletePreviousChar(int *row, int *col);
+ 	void addNewLine(int *row, int *col);
+-	void insertChar(byte c, int *row, int *col);
++	void insertChar(uint32 c, int *row, int *col);
+ 
+ 	void getChunkPosFromIndex(int index, uint &lineNum, uint &chunkNum, uint &offset);
+ 	void getRowCol(int x, int y, int *sx, int *sy, int *row, int *col, int *chunk_ = nullptr);
+--- a/graphics/macgui/mactext.cpp
++++ b/graphics/macgui/mactext.cpp
+@@ -1524,13 +1524,14 @@
+ 			if (event.kbd.ascii == '~')
+ 				return false;
+ 
+-			if (event.kbd.ascii >= 0x20 && event.kbd.ascii <= 0x7f) {
++			// also Latin-1 letters (Swedish Å Ä Ö typed on a Mac keyboard)
++			if ((event.kbd.ascii >= 0x20 && event.kbd.ascii <= 0x7f) || (event.kbd.ascii >= 0xa0 && event.kbd.ascii <= 0xff)) {
+ 				// if we have selected text, then we delete it, then we try to insert char
+ 				if (_selectedText.endY != -1) {
+ 					cutSelection();
+ 					_contentIsDirty = true;
+ 				}
+-				insertChar((byte)event.kbd.ascii, &_cursorRow, &_cursorCol);
++				insertChar((uint32)event.kbd.ascii, &_cursorRow, &_cursorCol);
+ 				updateCursorPos();
+ 				_contentIsDirty = true;
+ 
+@@ -2046,9 +2047,11 @@
+ 
+ //////////////////
+ // Text editing
+-void MacText::insertChar(byte c, int *row, int *col) {
++void MacText::insertChar(uint32 c, int *row, int *col) {
+ 	if (_canvas._text.empty() || _canvas._text[*row].chunks.empty()) {
+-		appendTextDefault(Common::String(c));
++		Common::U32String str;
++		str += c;
++		appendTextDefault(str);
+ 		(*col)++;
+ 
+ 		return;

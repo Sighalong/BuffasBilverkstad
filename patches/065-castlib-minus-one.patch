@@ -1,0 +1,44 @@
+From 2bae691f24aca9bcf9cd3b46bd3e9c12e5074d2a Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 20:38:05 +0200
+Subject: [PATCH] director: resolve D6 score sprites with castLib -1 in the
+ movie cast, then shared
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/movie.cpp | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/engines/director/movie.cpp b/engines/director/movie.cpp
+index f3d966f..6ea7d19 100644
+--- a/engines/director/movie.cpp
++++ b/engines/director/movie.cpp
+@@ -39,6 +39,7 @@
+ namespace Director {
+ 
+ #include "director/blank-score.h"
++#include "director/mullediag.h"
+ 
+ Movie::Movie(Window *window) {
+ 	_window = window;
+@@ -578,6 +579,17 @@ CastMember *Movie::getCastMember(CastMemberID memberID) {
+ 		if (result == nullptr && _sharedCast) {
+ 			result = _sharedCast->getCastMember(memberID.member);
+ 		}
++	} else if (memberID.castLib < 0) {
++		// D6 score sprites with castLib -1 (Mulle Meck 10.DXR intro frames 7+):
++		// resolve in the movie's own cast, then the shared cast
++		if (memberID.member == 0)
++			return nullptr;
++		if (_cast)
++			result = _cast->getCastMember(memberID.member);
++		if (result == nullptr && _sharedCast)
++			result = _sharedCast->getCastMember(memberID.member);
++		MDIAG(2, "cast", "castLib %d member %d -> %s", memberID.castLib, memberID.member,
++			result ? castType2str(result->_type) : "none");
+ 	} else if (memberID.castLib != 0) {
+ 		warning("Movie::getCastMember: Unknown castLib %d", memberID.castLib);
+ 	}
+-- 
+2.54.0 (Apple Git-157)
+

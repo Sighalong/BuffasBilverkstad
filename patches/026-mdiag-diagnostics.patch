@@ -1,0 +1,406 @@
+From 583293dd197097a039fc4f74d4e16e812cd25a31 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:45:29 +0200
+Subject: [PATCH] 0030 MDIAG: one level-gated diagnostics facility (movie, go,
+ calls, errors, windows, fileio, save, sound, input, load failures)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/cast.cpp                 |  2 ++
+ engines/director/castmember/bitmap.cpp    |  3 ++-
+ engines/director/castmember/movie.cpp     |  2 ++
+ engines/director/director.cpp             |  2 ++
+ engines/director/director.h               |  1 +
+ engines/director/lingo/lingo-builtins.cpp |  4 ++++
+ engines/director/lingo/lingo-code.cpp     |  1 +
+ engines/director/lingo/lingo-events.cpp   |  1 +
+ engines/director/lingo/lingo-funcs.cpp    |  4 +++-
+ engines/director/lingo/lingo-object.cpp   |  1 +
+ engines/director/lingo/lingo.cpp          |  1 +
+ engines/director/lingo/xlibs/f/fileio.cpp |  2 ++
+ engines/director/module.mk                |  1 +
+ engines/director/mullediag.cpp            | 22 ++++++++++++++++++++++
+ engines/director/mullediag.h              | 18 ++++++++++++++++++
+ engines/director/score.cpp                | 22 ++++++++++++++++++++--
+ engines/director/sound.cpp                |  6 +++---
+ engines/director/window.cpp               |  2 ++
+ 18 files changed, 88 insertions(+), 7 deletions(-)
+ create mode 100644 engines/director/mullediag.cpp
+ create mode 100644 engines/director/mullediag.h
+
+diff --git a/engines/director/cast.cpp b/engines/director/cast.cpp
+index 212a0df..1ef51c4 100644
+--- a/engines/director/cast.cpp
++++ b/engines/director/cast.cpp
+@@ -1022,6 +1022,7 @@ bool Cast::saveRuntimeData() {
+ 		g_system->getSavefileManager()->removeSavefile(fileName);
+ 		ok = g_system->getSavefileManager()->renameSavefile(tmpName, fileName, false);
+ 	}
++	MDIAG(1, "save", "castLib '%s' -> %s: %d members, %s", _castName.c_str(), fileName.c_str(), (int)ids.size(), ok ? "ok" : "FAILED");
+ 	if (!ok)
+ 		warning("Cast::saveRuntimeData(): could not write %s", fileName.c_str());
+ 	else
+@@ -1709,6 +1710,7 @@ void Cast::loadExternalSound(Common::SeekableReadStreamEndian &stream) {
+ 
+ 	if (resPath.empty()) {
+ 		warning("Cast::loadExternalSound: could not find external sound file %s", str.c_str());
++		MDIAG(1, "loadfail", "external sound '%s' not found", str.c_str());
+ 		return;
+ 	}
+ 
+diff --git a/engines/director/castmember/bitmap.cpp b/engines/director/castmember/bitmap.cpp
+index 300cc7a..bac8c1c 100644
+--- a/engines/director/castmember/bitmap.cpp
++++ b/engines/director/castmember/bitmap.cpp
+@@ -785,6 +785,7 @@ void BitmapCastMember::load() {
+ 
+ 	if (pic == nullptr) {
+ 		warning("BitmapCastMember::load(): Bitmap image %d not found", imgId);
++		MDIAG(1, "loadfail", "bitmap member %d image %d not found", _castId, imgId);
+ 		return;
+ 	}
+ 
+@@ -854,7 +855,7 @@ void BitmapCastMember::load() {
+ 	{
+ 		CastMemberInfo *ci = _cast->getCastMemberInfo(_castId);
+ 		if (ci && ci->name.hasPrefix("30b"))
+-			warning("MULLEDIAG map bitmap '%s' id %d: w %d h %d bpp %d clut %s picture %d", ci->name.c_str(), _castId, w, h, _bitsPerPixel, _clut.asString().c_str(), _picture ? 1 : 0);
++			MDIAG(2, "cast", "map bitmap '%s' id %d: w %d h %d bpp %d clut %s picture %d", ci->name.c_str(), _castId, w, h, _bitsPerPixel, _clut.asString().c_str(), _picture ? 1 : 0);
+ 	}
+ 
+ 	_loaded = true;
+diff --git a/engines/director/castmember/movie.cpp b/engines/director/castmember/movie.cpp
+index 46de5af..f3f62a8 100644
+--- a/engines/director/castmember/movie.cpp
++++ b/engines/director/castmember/movie.cpp
+@@ -139,12 +139,14 @@ void MovieCastMember::load() {
+ 	Common::Path moviePath = findMoviePath(rawMoviePath);
+ 	if (moviePath.empty()) {
+ 		warning("MovieCastMember::load(): Linked movie %s not found", rawMoviePath.c_str());
++		MDIAG(1, "loadfail", "movie member %d linked movie '%s' not found", _castId, rawMoviePath.c_str());
+ 		return;
+ 	}
+ 
+ 	Common::SharedPtr<Archive> archive = g_director->openArchive(moviePath);
+ 	if (!archive) {
+ 		warning("MovieCastMember::load(): Failed to load archive at %s", moviePath.toString().c_str());
++		MDIAG(1, "loadfail", "movie member %d archive '%s' failed", _castId, moviePath.toString().c_str());
+ 		return;
+ 	}
+ 
+diff --git a/engines/director/director.cpp b/engines/director/director.cpp
+index 7857289..242c4ab 100644
+--- a/engines/director/director.cpp
++++ b/engines/director/director.cpp
+@@ -212,6 +212,7 @@ Window *DirectorEngine::getOrCreateWindow(Common::String &name) {
+ 	window->incRefCount();
+ 	_wm->addWindowInitialized(window->getMacWindow());
+ 	_windowList.push_back(window);
++	MDIAG(1, "window", "created '%s' (%d windows)", name.c_str(), (int)_windowList.size());
+ 	return window;
+ }
+ 
+@@ -220,6 +221,7 @@ void DirectorEngine::forgetWindow(Window *window) {
+ 		if (it == window)
+ 			return;
+ 	}
++	MDIAG(1, "window", "forget '%s'", window->getName().c_str());
+ 	window->setVisible(false, true);
+ 	window->getSoundManager()->stopSound();
+ 	_windowsToForget.push_back(window);
+diff --git a/engines/director/director.h b/engines/director/director.h
+index 82b393d..d48fab3 100644
+--- a/engines/director/director.h
++++ b/engines/director/director.h
+@@ -29,6 +29,7 @@
+ 
+ #include "director/types.h"
+ #include "director/util.h"
++#include "director/mullediag.h"
+ #include "director/detection.h"
+ 
+ #define GAMEOPTION_GAMMA_CORRECTION GUIO_GAMEOPTIONS1
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 1d9ad88..e4db0c6 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -3602,6 +3602,10 @@ void LB::b_sendSprite(int nargs) {
+ 				result = g_lingo->pop();
+ 			}
+ 		}
++		if (!handled && result.type == VOID)
++			MDIAG(1, "call", "sendSprite(%d, #%s) no behavior handler, result VOID (%d instances, frame %d)", spriteNum, msgName.c_str(), (int)channel->_scriptInstanceList.size(), score->getCurrentFrameNum());
++	} else {
++		MDIAG(1, "call", "sendSprite(%d, #%s) no such sprite channel", spriteNum, msgName.c_str());
+ 	}
+ 
+ 	if (allowRetVal)
+diff --git a/engines/director/lingo/lingo-code.cpp b/engines/director/lingo/lingo-code.cpp
+index ea068c5..4af7d04 100644
+--- a/engines/director/lingo/lingo-code.cpp
++++ b/engines/director/lingo/lingo-code.cpp
+@@ -1779,6 +1779,7 @@ void LC::call(const Symbol &funcSym, int nargs, bool allowRetVal) {
+ 				return;
+ 			}
+ 
++			MDIAG(1, "call", "undefined handler '%s' (%d args) in movie %s", funcSym.name->c_str(), nargs, g_director->getCurrentMovie() ? g_director->getCurrentMovie()->getMacName().c_str() : "?");
+ 			g_lingo->lingoError("Call to undefined handler '%s'. Dropping %d stack items", funcSym.name->c_str(), nargs);
+ 		} else {
+ 			g_lingo->lingoError("Call to undefined handler. Dropping %d stack items", nargs);
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index 28248db..8d549db 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -733,6 +733,7 @@ bool Movie::processInputEvent(LEvent event, int targetId, Common::Point pos) {
+ 		}
+ 	}
+ 
++	MDIAG(event == kEventMouseUp || event == kEventMouseDown || event == kEventKeyDown ? 1 : 2, "input", "%s sprite %d at %d,%d (%s)", _lingo->_eventHandlerTypes[event], targetId ? targetId : _score->getMouseSpriteIDFromPos(pos), pos.x, pos.y, _lingo->_state->callstack.empty() ? "now" : "queued");
+ 	queueInputEvent(event, targetId, pos);
+ 	if ((!_lingo->_state->callstack.empty()) || (_lingo->_currentInputEvent.type != VOIDSYM)) {
+ 		// We're in the middle of executing something else, queue input event for later
+diff --git a/engines/director/lingo/lingo-funcs.cpp b/engines/director/lingo/lingo-funcs.cpp
+index 1f494af..90dd6c2 100644
+--- a/engines/director/lingo/lingo-funcs.cpp
++++ b/engines/director/lingo/lingo-funcs.cpp
+@@ -85,6 +85,7 @@ void Lingo::func_goto(Datum &frame, Datum &movie, bool calledfromgo) {
+ 
+ 		stage->_nextMovie.frameS.clear();
+ 		stage->_nextMovie.frameI = -1;
++		MDIAG(1, "go", "movie '%s' frame %s from frame %d", movieFilenameRaw.c_str(), frame.type == VOID ? "start" : frame.asString().c_str(), score->getCurrentFrameNum());
+ 
+ 		if (frame.type == STRING) {
+ 			debugC(3, kDebugLingoExec, "Lingo::func_goto(): going to movie \"%s\", frame \"%s\"", movieFilenameRaw.c_str(), frame.u.s->c_str());
+@@ -103,6 +104,7 @@ void Lingo::func_goto(Datum &frame, Datum &movie, bool calledfromgo) {
+ 		return;
+ 	}
+ 
++	MDIAG(1, "go", "frame %s from frame %d", frame.asString().c_str(), score->getCurrentFrameNum());
+ 	if (frame.type == STRING) {
+ 		debugC(3, kDebugLingoExec, "Lingo::func_goto(): going to frame \"%s\"", frame.u.s->c_str());
+ 		score->setStartToLabel(*frame.u.s);
+@@ -222,7 +224,7 @@ void Lingo::func_play(Datum &frame, Datum &movie) {
+ void Lingo::func_cursor(Datum cursorDatum) {
+ 	Window *stage = _vm->getCurrentWindow();
+ 	Score *score = stage->getCurrentMovie()->getScore();
+-	warning("MULLEDIAG %u cursor(%s)", g_system->getMillis(), cursorDatum.asString(true).c_str());
++	MDIAG(2, "cursor", "cursor(%s)", cursorDatum.asString(true).c_str());
+ 	if (cursorDatum.type == ARRAY){
+ 		score->_defaultCursor.readFromCast(cursorDatum);
+ 	} else {
+diff --git a/engines/director/lingo/lingo-object.cpp b/engines/director/lingo/lingo-object.cpp
+index 158691a..6c7cd5a 100644
+--- a/engines/director/lingo/lingo-object.cpp
++++ b/engines/director/lingo/lingo-object.cpp
+@@ -1015,6 +1015,7 @@ void LM::m_open(int nargs) {
+ 	bool wasVisible = me->_window->isVisible();
+ 	me->setVisible(true);
+ 
++	MDIAG(1, "window", "open '%s' (was visible %d)", me->getName().c_str(), wasVisible);
+ 	if (!wasVisible)
+ 		me->sendWindowEvent(kEventOpenWindow);
+ }
+diff --git a/engines/director/lingo/lingo.cpp b/engines/director/lingo/lingo.cpp
+index f45c1a1..f0eb047 100644
+--- a/engines/director/lingo/lingo.cpp
++++ b/engines/director/lingo/lingo.cpp
+@@ -808,6 +808,7 @@ void Lingo::lingoError(const char *s, ...) {
+ 		_caughtError = true;
+ 	} else {
+ 		warning("BUILDBOT: Uncaught Lingo error: %s", buf);
++		MDIAG(1, "error", "%s | movie %s | stack: %s", buf, _vm->getCurrentMovie() ? _vm->getCurrentMovie()->getMacName().c_str() : "?", formatCallStack(_state->pc).c_str());
+ 		debug("Movie: %s", _vm->getCurrentMovie()->getArchive()->getPathName().toString(Common::Path::kNativeSeparator).c_str());
+ 		debugN("%s", formatCallStack(_state->pc).c_str());
+ 
+diff --git a/engines/director/lingo/xlibs/f/fileio.cpp b/engines/director/lingo/xlibs/f/fileio.cpp
+index 85de781..4554135 100644
+--- a/engines/director/lingo/xlibs/f/fileio.cpp
++++ b/engines/director/lingo/xlibs/f/fileio.cpp
+@@ -413,6 +413,7 @@ void FileIO::m_openFile(int nargs) {
+ 	}
+ 	Common::String path = d2.asString();
+ 	me->_lastError = me->open(path, option);
++	MDIAG(1, "fileio", "openFile '%s' mode %d (%s) -> err %d size %d", path.c_str(), mode, option.c_str(), (int)me->_lastError, me->_inStream ? (int)me->_inStream->size() : -1);
+ }
+ 
+ void FileIO::m_closeFile(int nargs) {
+@@ -444,6 +445,7 @@ void FileIO::m_createFile(int nargs) {
+ 		err = kErrorIO;
+ 	}
+ 	me->_lastError = err;
++	MDIAG(1, "fileio", "createFile '%s' -> save file '%s' err %d", path.c_str(), filename.c_str(), (int)err);
+ 	g_lingo->push(Datum(err));
+ }
+ 
+diff --git a/engines/director/module.mk b/engines/director/module.mk
+index 39148d7..56d2a28 100644
+--- a/engines/director/module.mk
++++ b/engines/director/module.mk
+@@ -16,6 +16,7 @@ MODULE_OBJS = \
+ 	images.o \
+ 	metaengine.o \
+ 	movie.o \
++	mullediag.o \
+ 	picture.o \
+ 	resource.o \
+ 	rte.o \
+diff --git a/engines/director/mullediag.cpp b/engines/director/mullediag.cpp
+new file mode 100644
+index 0000000..e5ea4b3
+--- /dev/null
++++ b/engines/director/mullediag.cpp
+@@ -0,0 +1,22 @@
++#include "common/config-manager.h"
++#include "common/system.h"
++#include "director/mullediag.h"
++
++namespace Director {
++
++int mdiagLevel() {
++	static int level = -1;
++	if (level < 0)
++		level = ConfMan.hasKey("mdiag") ? ConfMan.getInt("mdiag") : 1;
++	return level;
++}
++
++void mdiagPrint(const char *area, const char *fmt, ...) {
++	va_list va;
++	va_start(va, fmt);
++	Common::String msg = Common::String::vformat(fmt, va);
++	va_end(va);
++	warning("MDIAG %u %s: %s", g_system->getMillis(), area, msg.c_str());
++}
++
++} // End of namespace Director
+diff --git a/engines/director/mullediag.h b/engines/director/mullediag.h
+new file mode 100644
+index 0000000..1b36337
+--- /dev/null
++++ b/engines/director/mullediag.h
+@@ -0,0 +1,18 @@
++/* Mulle Meck diagnostics: one-line, level-gated "MDIAG <area>:" log lines.
++ * ConfMan key "mdiag" in scummvm.ini [scummvm]: 0 = off, 1 = events (default), 2 = + hover/cursor/frame detail. */
++#ifndef DIRECTOR_MULLEDIAG_H
++#define DIRECTOR_MULLEDIAG_H
++
++#include "common/scummsys.h"
++
++namespace Director {
++
++int mdiagLevel();
++void mdiagPrint(const char *area, const char *fmt, ...) GCC_PRINTF(2, 3);
++
++#define MDIAG(level, area, ...) \
++	do { if (Director::mdiagLevel() >= (level)) Director::mdiagPrint(area, __VA_ARGS__); } while (0)
++
++} // End of namespace Director
++
++#endif
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index c9ed3b4..9f0fa6c 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -23,6 +23,7 @@
+ 
+ #include "common/config-manager.h"
+ #include "common/file.h"
++#include "image/bmp.h"
+ #include "common/rational.h"
+ #include "common/memstream.h"
+ #include "common/punycode.h"
+@@ -368,6 +369,23 @@ void Score::step() {
+ 
+ 	if (debugChannelSet(-1, kDebugScreenshot))
+ 		screenShot();
++
++	// MULLEDIAG: MULLE_SHOTS=<dir> saves the stage as BMP every 2 s (diagnostics only)
++	static uint32 lastShot = 0;
++	const char *shotDir = getenv("MULLE_SHOTS");
++	if (shotDir && g_system->getMillis() - lastShot > 2000) {
++		lastShot = g_system->getMillis();
++		Common::DumpFile f;
++		Common::Path fn(Common::String::format("%s/%s-f%d-%u.bmp", shotDir, _movie->getMacName().c_str(), _curFrameNumber, lastShot));
++		if (f.open(fn, true)) {
++			Graphics::Surface raw = _window->getSurface()->rawSurface();
++			if (raw.format.bytesPerPixel == 1)
++				Image::writeBMP(f, raw, _vm->getPalette(), 256);
++			else
++				Image::writeBMP(f, raw);
++			f.close();
++		}
++	}
+ }
+ 
+ void Score::stopPlay() {
+@@ -525,7 +543,7 @@ void Score::updateCurrentFrame() {
+ 		// This copies in the frame data and updates _curFrameNumber.
+ 		loadFrame(nextFrameNumberToLoad, true);
+ 		if (_movie->getMacName().hasPrefixIgnoreCase("LBSTART"))
+-			warning("MULLEDIAG %u LBSTART frame %d tempo %d cue %d", g_system->getMillis(), nextFrameNumberToLoad, _currentFrame->_mainChannels.tempo, _currentFrame->_mainChannels.tempoCuePoint);
++			MDIAG(2, "frame", "LBSTART frame %d tempo %d cue %d", nextFrameNumberToLoad, _currentFrame->_mainChannels.tempo, _currentFrame->_mainChannels.tempoCuePoint);
+ 
+ 		for (uint ch = 0; ch < _channels.size(); ch++)
+ 			_channels[ch]->_sprite->releaseAutoPuppet(_currentFrame->_sprites[ch]->_copyBackMask);
+@@ -602,7 +620,7 @@ void Score::updateNextFrameTime() {
+ 		} else { // D6+
+ 			int16 tempoCuePoint = _currentFrame->_mainChannels.tempoCuePoint;
+ 			if (tempo != 246 || tempoCuePoint <= 0)
+-				warning("MULLEDIAG %u D6 frame %d tempo %d cue %d", g_system->getMillis(), getCurrentFrameNum(), tempo, tempoCuePoint);
++				MDIAG(2, "frame", "D6 frame %d tempo %d cue %d", getCurrentFrameNum(), tempo, tempoCuePoint);
+ 
+ 			if (tempo == 255) {
+ 				// Wait for sound channel 1
+diff --git a/engines/director/sound.cpp b/engines/director/sound.cpp
+index 97d6466..9da4ff6 100644
+--- a/engines/director/sound.cpp
++++ b/engines/director/sound.cpp
+@@ -161,7 +161,7 @@ void DirectorSound::playSound(SoundID soundID, int soundChannel, bool forPuppet)
+ void DirectorSound::playCastMember(CastMemberID memberID, int soundChannel, bool forPuppet) {
+ 	if (!assertChannel(soundChannel))
+ 		return;
+-	warning("MULLEDIAG %u playCastMember %s ch %d puppet %d", g_system->getMillis(), memberID.asString().c_str(), soundChannel, forPuppet);
++	MDIAG(1, "sound", "start %s ch %d puppet %d", memberID.asString().c_str(), soundChannel, forPuppet);
+ 
+ 	if (memberID.member == 0) {
+ 		// Normally cast member 0 stops the sound.
+@@ -535,7 +535,7 @@ void DirectorSound::stopSound(int soundChannel) {
+ 
+ 	debugC(5, kDebugSound, "DirectorSound::stopSound(): stopping channel %d", soundChannel);
+ 	if (isChannelActive(soundChannel))
+-		warning("MULLEDIAG %u stopSound ch %d (was active)", g_system->getMillis(), soundChannel);
++		MDIAG(1, "sound", "stop ch %d (was active)", soundChannel);
+ 	if (_channels[soundChannel]->loopPtr)
+ 		_channels[soundChannel]->loopPtr = nullptr;
+ 	cancelFade(soundChannel);
+@@ -547,7 +547,7 @@ void DirectorSound::stopSound(int soundChannel) {
+ 
+ void DirectorSound::stopSound() {
+ 	debugC(5, kDebugSound, "DirectorSound::stopSound(): stopping all channels");
+-	warning("MULLEDIAG %u stopSound all", g_system->getMillis());
++	MDIAG(1, "sound", "stop all");
+ 	for (auto &it : _channels) {
+ 		if (!it._value)
+ 			continue;
+diff --git a/engines/director/window.cpp b/engines/director/window.cpp
+index 1fb728f..431f9ea 100644
+--- a/engines/director/window.cpp
++++ b/engines/director/window.cpp
+@@ -542,6 +542,7 @@ bool Window::setNextMovie(Common::String &movieFilenameRaw) {
+ 
+ 	if (!fileExists) {
+ 		warning("Movie %s does not exist", _fileName.toString(Common::Path::kNativeSeparator).c_str());
++		MDIAG(1, "movie", "FAILED to find '%s'", movieFilenameRaw.c_str());
+ 		_fileName.clear();
+ 		return false;
+ 	}
+@@ -727,6 +728,7 @@ bool Window::step() {
+ 			{
+ 				debug(0, "\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+ 				debug(0, "@@@@   Loading movie '%s' in '%s'", utf8ToPrintable(_currentMovie->getMacName()).c_str(), _currentPath.c_str());
++				MDIAG(1, "movie", "load '%s' in window '%s' (next frame %d / '%s')", utf8ToPrintable(_currentMovie->getMacName()).c_str(), getName().c_str(), _nextMovie.frameI, _nextMovie.frameS.c_str());
+ 				debug(0, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
+ 
+ 				bool goodMovie = _currentMovie->loadArchive();
+-- 
+2.54.0 (Apple Git-157)
+

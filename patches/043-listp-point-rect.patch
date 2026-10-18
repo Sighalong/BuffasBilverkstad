@@ -1,0 +1,29 @@
+From 01b13cd37e0a428ba1ff3bef3a2cfa0c3a33fc94 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 15:08:50 +0200
+Subject: [PATCH] 0028 listP is true for points and rects in D5+ (driving map
+ borders and collision checks)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-builtins.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index e4db0c6..009421e 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -1349,6 +1349,10 @@ void LB::b_listP(int nargs) {
+ 	Datum d(0);
+ 	if (list.type == ARRAY || list.type == PARRAY) {
+ 		d.u.i = 1;
++	} else if ((list.type == POINT || list.type == RECT) && g_director->getVersion() >= 500) {
++		// D5+: "listP returns TRUE if the item is a list, rect or point"
++		// (Mulle Meck's driving uses it on points for map borders and collisions)
++		d.u.i = 1;
+ 	}
+ 	g_lingo->push(d);
+ }
+-- 
+2.54.0 (Apple Git-157)
+

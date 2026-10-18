@@ -1,0 +1,27 @@
+From bad4a787ed20de5f63caa0cc9641dbae259cd69d Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sat, 17 Oct 2026 14:58:26 +0200
+Subject: [PATCH] 0033 selStart/selEnd also reach widgets of members made
+ editable via the cast (06 car name)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ engines/director/channel.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/engines/director/channel.cpp b/engines/director/channel.cpp
+index d777536..35e739b 100644
+--- a/engines/director/channel.cpp
++++ b/engines/director/channel.cpp
+@@ -634,7 +634,7 @@ void Channel::updateGlobalAttr() {
+ 		return;
+ 
+ 	// update text info, including selEnd and selStart
+-	if (_sprite->_cast->_type == kCastText && _sprite->_editable && _widget)
++	if (_sprite->_cast->_type == kCastText && _sprite->getEditable() && _widget)
+ 		((Graphics::MacText *)_widget)->setSelRange(g_director->getCurrentMovie()->_selStart, g_director->getCurrentMovie()->_selEnd);
+ 
+ 	// update button info, including checkBoxType
+-- 
+2.54.0 (Apple Git-157)
+
