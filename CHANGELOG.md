@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.1.1 (2026-10-18)
+
+Same engine as v0.1.0 (patches 001-092, no engine changes); docs and launcher fixes only.
 
 - Docs: DIAG-FLAGS.md now covers every `MULLE_*` test variable and the MDIAG levels; the outdated INPUT-REPLAY.md was removed; notes on dev-only references in INVESTIGATION.md and PATCH-NUMBERS.md; README fixes (patch file names, Windows).
 - run.sh creates `build/` for `--trace` logs (needed when running from the release zip).
