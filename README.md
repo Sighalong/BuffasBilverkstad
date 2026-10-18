@@ -38,9 +38,11 @@ plays: the name screen, garage, junkyard, yard, driving and destinations.
 **macOS (Apple Silicon):**
 1. Download `BuffasBilverkstad-<version>-macOS-arm64.zip` from
    [Releases](https://github.com/Sighalong/BuffasBilverkstad/releases/latest) and unzip it.
-2. Open `Buffas Bilverkstad.app`. It isn't notarized, so the first time, allow it under *System Settings →
-   Privacy & Security → Open Anyway*.
-3. Click *Add Game…*, choose your [game folder](#preparing-the-game-files), then click *Start*.
+2. Put your `.iso` next to `Buffas Bilverkstad.app` and double-click `Copy game from ISO.command`. It copies the
+   game to *Documents/Mulle game* (or see [Preparing the game files](#preparing-the-game-files) for a CD).
+3. Open `Buffas Bilverkstad.app`. It isn't notarized, so the first time, allow it under *System Settings →
+   Privacy & Security → Open Anyway*. The same applies to the `.command` file.
+4. Click *Add Game…*, choose the game folder, then click *Start*.
 
 **Other platforms:** [build from source](#building-from-source), then run:
 
@@ -123,7 +125,7 @@ build with the Director engine enabled:
 for p in patches/*.patch; do patch -p1 < "$p"; done
 ```
 
-**Packaging (macOS).** `tools/package-macos.sh v0.1.1` turns a build into the release zip and its `.sha256`.
+**Packaging (macOS).** `tools/package-macos.sh v0.1.2` turns a build into the release zip and its `.sha256`.
 It refuses to package if a local path or user name would ship.
 
 ## Running
@@ -142,7 +144,8 @@ It refuses to package if a local path or user name would ship.
 
 ## Status and known issues
 
-This is an early release. The game is playable from start to end: name screen, intro, garage, junkyard, yard,
+The current release is **v0.1.2**: 92 engine patches (001–092) against ScummVM 2026.4.0, plus one SDL2
+fix on macOS. It's an early release. The game is playable from start to end: name screen, intro, garage, junkyard, yard,
 driving, destinations and the credits.
 
 Known issues:
@@ -184,6 +187,7 @@ Every patch is a plain diff against ScummVM 2026.4.0 with a descriptive header:
 | `run.sh` | Starts the game with a project-local config and saves |
 | `patches/NNN-*.patch` | Engine patches, applied in numeric order (`diag-`/`mdiag-` patches add opt-in diagnostics) |
 | `patches/sdl/` | macOS-only SDL2 fix (hidden Cocoa cursor) |
+| `tools/copy-game-from-iso.sh` | Copies the game out of the `.iso` without mounting it (`Copy game from ISO.command` in the macOS zip) |
 | `tools/package-macos.sh` | Builds the macOS release zip |
 | `tools/cap-log.pl`, `tools/log-summary.sh` | Log capping and summaries for debugging (`log-summary.sh` needs zsh) |
 | `docs/` | Patch list, investigation log, diagnostics |
