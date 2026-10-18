@@ -1,0 +1,40 @@
+From dd2fe9561d66255041896980823eefafff229c62 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 13:55:27 +0200
+Subject: [PATCH] director: D6 score reads all listSize sprite-detail offsets
+
+numEntries is one less than the offset list, so the last sprite detail
+(behavior parameters in Mulle Meck 82, 84, 85, 87) was never read. Found
+via dankar89's mellemuck notes (fix 38); our own fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index 3650eac..e1d55ec 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -2161,11 +2161,15 @@ void Score::loadFrames(Common::SeekableReadStreamEndian &stream, uint16 version,
+ 		_indexStart = listStart + 3 * 4;
+ 		_frameDataOffset = _indexStart + listSize * 4;
+ 
+-		_spriteDetailOffsets.resize(numEntries);
+-		_spriteDetailAccessed.resize(numEntries);
++		// The offset list is listSize long, as _frameDataOffset above assumes;
++		// numEntries is one less, so the last sprite detail was never read
++		// (Mulle Meck 82, 84, 85 and 87 keep behavior parameters in it).
++		const int offsetCount = listSize;
++		_spriteDetailOffsets.resize(offsetCount);
++		_spriteDetailAccessed.resize(offsetCount);
+ 
+ 		int prevOff = 0;
+-		for (int i = 0; i < numEntries; i++) {
++		for (int i = 0; i < offsetCount; i++) {
+ 			uint32 off = _framesStream->readUint32();
+ 			_spriteDetailOffsets[i] = _frameDataOffset + off;
+ 			_spriteDetailAccessed[i] = false;
+-- 
+2.54.0 (Apple Git-157)
+

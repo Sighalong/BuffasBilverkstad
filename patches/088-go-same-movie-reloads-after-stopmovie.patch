@@ -1,0 +1,35 @@
+From ccb9c2d76f48ae0a6bd05da5f8f0b8ea7315ea72 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 13:56:47 +0200
+Subject: [PATCH] director: a go to the playing movie loads it afresh once
+ stopMovie ran
+
+Mulle Meck's stopMovie kills gDir; the pause menu's go(1, "03") in 03
+left the scene without it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/window.cpp | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/engines/director/window.cpp b/engines/director/window.cpp
+index 7d51a23..c72c601 100644
+--- a/engines/director/window.cpp
++++ b/engines/director/window.cpp
+@@ -736,6 +736,13 @@ bool Window::step() {
+ 
+ 	// prepare next movie
+ 	if (!_nextMovie.movie.empty()) {
++		// The movie playing was stopped (stopMovie ran): a go to the same movie
++		// loads it afresh (prepareMovie, startMovie), as Director does. Mulle
++		// Meck's stopMovie kills gDir, and nothing made a new one (the pause
++		// menu's go(1, "03") in 03, loading a save). Only on the first pass, not
++		// while a movie-change hold re-enters here.
++		if (!_movieHoldUntil && _currentMovie && _currentMovie->getScore()->_playState == kPlayStopped)
++			_forceReload = true;
+ 		if (!_movieHoldUntil && _currentMovie && g_director->getVersion() >= 600) {
+ 			uint32 hold = getSoundManager()->movieChangeHoldMs();
+ 			if (hold) {
+-- 
+2.54.0 (Apple Git-157)
+

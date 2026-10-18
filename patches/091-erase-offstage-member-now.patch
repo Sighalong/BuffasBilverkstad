@@ -1,0 +1,51 @@
+From 1c7f7d85497c1b05ab1d33b46f934ebf68e11af9 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 14:18:19 +0200
+Subject: [PATCH] director: erase removes a member no sprite shows at once
+
+ScummVM erased a member only when a sprite showing it was redrawn, so a
+member never on stage stayed, and its name still found it. Mulle Meck's
+deleted player came back with the old progress when a player of the same
+name was made. Found via Dev C's audit (idea from dankar89's mellemuck
+notes, fix 94); our own fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-builtins.cpp | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/engines/director/lingo/lingo-builtins.cpp b/engines/director/lingo/lingo-builtins.cpp
+index 6b63d0f..a9d8055 100644
+--- a/engines/director/lingo/lingo-builtins.cpp
++++ b/engines/director/lingo/lingo-builtins.cpp
+@@ -2795,14 +2795,26 @@ void LB::b_erase(int nargs) {
+ 	CastMember *eraseCast = movie->getCastMember(d.asMemberID());
+ 
+ 	if (eraseCast) {
+-		eraseCast->_erase = true;
+ 		Common::Array<Channel *> channels = movie->getScore()->_channels;
++		bool onStage = false;
+ 
+ 		for (uint i = 0; i < channels.size(); i++) {
+ 			if (channels[i]->_sprite->_castId == d.asMemberID()) {
+ 				channels[i]->setDirty();
++				onStage = true;
+ 			}
+ 		}
++
++		// Director removes the member at once. A member no sprite shows is
++		// never redrawn, so the deferred erase below never happened and the
++		// name still found it: Mulle Meck's deleted player came back with
++		// the old progress when a player of the same name was made.
++		if (onStage) {
++			eraseCast->_erase = true;
++		} else {
++			MDIAG(1, "save", "erase member %s now (no sprite shows it)", d.asMemberID().asString().c_str());
++			movie->eraseCastMember(d.asMemberID());
++		}
+ 	}
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

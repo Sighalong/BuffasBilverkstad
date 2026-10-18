@@ -28,6 +28,9 @@ fetch() { # url sha file
 
 mkdir -p "$B"
 cd "$B"
+# Keep local build paths (and so the user name) out of the binaries
+export CFLAGS="${CFLAGS:-} -ffile-prefix-map=$B=build"
+export CXXFLAGS="${CXXFLAGS:-} -ffile-prefix-map=$B=build"
 
 # ScummVM source, patched once (a .patched marker keeps reruns idempotent)
 fetch "$SVM_URL" "$SVM_SHA" scummvm-$SVM_VER.tar.gz

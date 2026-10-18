@@ -23,8 +23,13 @@ garage, junkyard, yard, driving and destinations.
 | `patches/sdl/` | One macOS-only SDL2 fix (hidden Cocoa cursor) |
 | `build.sh` | Downloads the pinned sources (checksum-verified), applies the patches, builds a Director-only ScummVM |
 | `run.sh` | Starts the game with a project-local config and saves |
-| `tools/` | Log helpers for debugging (`cap-log.pl`, `log-summary.sh`) |
-| `docs/` | Investigation log and debug-flag notes |
+| `tools/package-macos.sh` | Makes the macOS release zip from a build (checks that no local path ships) |
+| `tools/` (others) | Log helpers for debugging (`cap-log.pl`, `log-summary.sh`) |
+| `docs/PATCHES.md` | One line per patch: what it fixes and which files it touches |
+| `docs/INVESTIGATION.md` | Full investigation log (how each bug was found) |
+| `docs/PATCH-NUMBERS.md` | Maps the old 4-digit development numbers to the current ones |
+| `docs/DIAG-FLAGS.md`, `docs/INPUT-REPLAY.md` | Opt-in diagnostics for developers |
+| `CHANGELOG.md` | Release history |
 
 ## 1. Get the game files from your CD or ISO
 
@@ -58,7 +63,16 @@ sudo umount ~/mnt/mulle
 ```
 Folder names on the disc may be in lower case on Linux. That's fine: ScummVM matches them case-insensitively.
 
-## 2. Build
+## 2. Get the engine
+
+**Ready-made (macOS, Apple Silicon).** Download `BuffasBilverkstad-<version>-macOS-arm64.zip` from the
+[Releases](https://github.com/Sighalong/BuffasBilverkstad/releases) page and unzip it. It contains
+`Buffas Bilverkstad.app` (the patched ScummVM, Director engine only) and `run.sh`. The app is not notarized, so
+the first time, right-click it → *Open* (or run `xattr -dr com.apple.quarantine "Buffas Bilverkstad.app"`).
+Then use *Add Game…* and pick your `game` folder, or run `./run.sh /path/to/game` next to the app.
+
+**Build it yourself** (all platforms):
+
 
 **macOS** (Apple Silicon or Intel). Needs only the Xcode command line tools (`xcode-select --install`), no Homebrew:
 ```bash
@@ -84,6 +98,7 @@ If you build ScummVM another way, apply `patches/*.patch` in order to a ScummVM 
 ```bash
 ./run.sh /path/to/game
 ```
+`run.sh` uses `build/scummvm-2026.4.0/scummvm` when you built it yourself, or `Buffas Bilverkstad.app` when it sits next to it.
 Config (`scummvm.ini`) and saves (`saves/`) are created next to `run.sh`, so nothing is written elsewhere.
 On Windows, run the built `scummvm.exe` from the MSYS2 shell with the same script, or add the
 `game` folder in the ScummVM launcher (*Add Game…*).
@@ -92,15 +107,25 @@ You can also use the built `scummvm` binary like any ScummVM: start it, choose *
 
 ## Status and known issues
 
-The game plays through the main loop. Known issues include:
-- Some destination conversations (Figge's place) still loop or end early.
-- Race-track high-score names are not shown.
-- Printing the diploma (PrintOMatic Xtra) is a stub.
+Early release: the core loop is playable from start to end (name screen, intro, garage, junkyard, yard,
+driving, destinations and back, credits). Known issues:
+- Not every destination has been played through yet (82-84, 87-91 and 93 are untested).
+- Some conversations (Figge, Ferre) may still be cut short.
+- Race-track high-score names may not be shown.
+- Quitting asks a "quit anyway?" question while a scene is playing.
+- Printing the diploma (PrintOMatic Xtra) does nothing.
+- Startup can show a white window for a few seconds before the logo.
 
 The patches also include diagnostics used during development (`MDIAG` log lines, and the `MULLE_SHOTS`,
 `MULLE_CLICKS` and `MULLE_EVAL` environment variables). These are inactive unless set; see `docs/DIAG-FLAGS.md`
-and `docs/INPUT-REPLAY.md`. The full investigation history is in `docs/INVESTIGATION.md`; patch numbers there refer to the
-development numbering, which the files in `patches/` keep in their slug (e.g. `084-d6-looping-sound-stays-busy` was 0078).
+and `docs/INPUT-REPLAY.md`. The full investigation history is in `docs/INVESTIGATION.md`; older entries use 4-digit development
+numbers, mapped in `docs/PATCH-NUMBERS.md`.
+
+## Acknowledgements
+
+- The [ScummVM](https://www.scummvm.org) team for the Director engine this builds on.
+- dankar89's [mellemuck](https://github.com/dankar89/mellemuck) notes, which pointed to three of the bugs fixed
+  here (patches 085, 086, 091). The fixes themselves are our own code.
 
 ## License
 

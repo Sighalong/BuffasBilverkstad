@@ -1,0 +1,55 @@
+From d5ca34a5879fe58a2e53348734592abf7c70bb4e Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 13:55:46 +0200
+Subject: [PATCH] director: add the marker (D5+), the frame of the current
+ marker
+
+Mulle Meck's wait and sound behaviors do go(the marker + 1); the unknown
+entity gave VOID and the jump went to frame 1. Found via dankar89's
+mellemuck notes (fix 36); our own fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-the.cpp | 6 ++++++
+ engines/director/lingo/lingo-the.h   | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/engines/director/lingo/lingo-the.cpp b/engines/director/lingo/lingo-the.cpp
+index 278ff09..33889e3 100644
+--- a/engines/director/lingo/lingo-the.cpp
++++ b/engines/director/lingo/lingo-the.cpp
+@@ -110,6 +110,7 @@ TheEntity entities[] = {					//	hasId  ver.	isFunction
+ 	{ kTheLastKey,			"lastKey",			false, 200, true },	// D2 f
+ 	{ kTheLastRoll,			"lastRoll",			false, 200, true },	// D2 f
+ 	{ kTheMachineType,		"machineType",		false, 200, true },	// D2 f
++	{ kTheMarker,			"marker",			false, 500, true },	//				D5 f, the frame of the current marker
+ 	{ kTheMaxInteger,		"maxInteger",		false, 300, true },	//		D3.1 f
+ 	{ kTheMemorySize,		"memorySize",		false, 200, true },	// D2 f
+ 	{ kTheMenu,				"menu",				true,  300, false },//		D3 p
+@@ -725,6 +726,11 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
+ 	case kTheLastRoll:
+ 		d = (int)(_vm->getMacTicks() - movie->_lastRollTime);
+ 		break;
++	case kTheMarker:
++		// Same as marker(0). Mulle Meck's wait and sound behaviors do
++		// go(the marker + 1); without it that went to frame 1.
++		d = g_lingo->func_marker(0);
++		break;
+ 	case kTheMachineType:
+ 		// These are actually coming from Gestalt machineType
+ 		//
+diff --git a/engines/director/lingo/lingo-the.h b/engines/director/lingo/lingo-the.h
+index 81028b6..f399863 100644
+--- a/engines/director/lingo/lingo-the.h
++++ b/engines/director/lingo/lingo-the.h
+@@ -92,6 +92,7 @@ enum TheEntityType {
+ 	kTheLastRoll,
+ 	kTheLines,
+ 	kTheMachineType,
++	kTheMarker,
+ 	kTheMaxInteger,
+ 	kTheMemorySize,
+ 	kTheMenu,
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,75 @@
+From 95d203f5cdcdca27cde5d4c324bfc940608b1606 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 13:57:06 +0200
+Subject: [PATCH] director: the Mulle data save loads each member before
+ writing it
+
+Members are read from the cast file on first use, so ones the game never
+touched were saved empty and restored empty over the cast file's text:
+ObjectsDB and the race board, since the first save. Empty saved text of a
+cast-file member now keeps the file's text, which repairs old saves.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/cast.cpp | 23 ++++++++++++++++++++---
+ 1 file changed, 20 insertions(+), 3 deletions(-)
+
+diff --git a/engines/director/cast.cpp b/engines/director/cast.cpp
+index ea7faee..87c18ca 100644
+--- a/engines/director/cast.cpp
++++ b/engines/director/cast.cpp
+@@ -1009,8 +1009,14 @@ void Cast::writeRuntimeData(Common::WriteStream *out, const Common::Array<int> &
+ 	out->writeUint32LE(ids.size());
+ 	for (int id : ids) {
+ 		out->writeUint32LE(id);
++		CastMember *member = _loadedCast->getVal(id);
++		// A member is read from the cast file when first used, so one the game
++		// never touched still has no text: load it, or it is saved empty
++		// (Mulle Meck's ObjectsDB and race board were, since the first save).
++		if (!member->isLoaded())
++			member->load();
+ 		writeSaveString(out, getCastMemberInfo(id)->name);
+-		writeSaveString(out, _loadedCast->getVal(id)->getField(kTheText).asString());
++		writeSaveString(out, member->getField(kTheText).asString());
+ 	}
+ }
+ 
+@@ -1091,7 +1097,7 @@ void Cast::loadRuntimeData() {
+ 		return;
+ 	}
+ 	uint32 count = in->readUint32LE();
+-	uint32 restored = 0;
++	uint32 restored = 0, keptFromCast = 0;
+ 	for (uint32 i = 0; i < count; i++) {
+ 		int id = in->readUint32LE();
+ 		Common::String name, text;
+@@ -1100,6 +1106,16 @@ void Cast::loadRuntimeData() {
+ 			break;
+ 		}
+ 		CastMember *member = getCastMemberByNameAndType(name, kCastText);
++		if (member && text.empty()) {
++			// Saves made before members were loaded for saving hold empty text
++			// for members never used; the cast file's own text is the real one.
++			if (!member->isLoaded())
++				member->load();
++			if (!member->getField(kTheText).asString().empty()) {
++				keptFromCast++;
++				continue;
++			}
++		}
+ 		if (!member) {
+ 			// A member the game created at runtime (e.g. a new player's database)
+ 			CastMember *source = nullptr;
+@@ -1126,7 +1142,8 @@ void Cast::loadRuntimeData() {
+ 	}
+ 	delete in;
+ 	debugC(1, kDebugSaving, "Cast::loadRuntimeData(): restored %d of %d members", restored, count);
+-	MDIAG(1, "save", "load castLib '%s': restored %d of %d members (%s)", _castName.c_str(), restored, count, fromSnapshot ? "memory" : "file");
++	MDIAG(1, "save", "load castLib '%s': restored %d of %d members, %d empty kept from the cast file (%s)", _castName.c_str(),
++		restored, count, keptFromCast, fromSnapshot ? "memory" : "file");
+ }
+ 
+ // Members without a version-capable writer, and members whose in-memory
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,55 @@
+From 9b19aa1173127d46e83d86918e4548ccbc7a4cd2 Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 14:24:30 +0200
+Subject: [PATCH] director: an empty D6 channel has no span; a channel going
+ empty ends Lingo changes
+
+A frame sprite without a sprite-detail entry kept the span info of the
+channel's previous sprite, so a channel that went empty looked like its
+span went on and 083's rule never fired: Mulle Meck's car stayed over the
+ignition picture in 92's Leave frame (car channels empty from frame 97).
+Emptiness is now the missing detail entry, and only a channel that had a
+span ends Lingo changes; one empty all along keeps what Lingo draws.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index dfc59ba..1be5d46 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -605,12 +605,14 @@ void Score::updateCurrentFrame() {
+ 			// the ignition picture starts.
+ 			const Sprite *frameSprite = _currentFrame->_sprites[ch];
+ 			const Channel *channel = _channels[ch];
+-			bool spanEnded = frameSprite->_castId.member == 0 && frameSprite->_spriteInfo.startFrame == 0;
+-			if (frameSprite->_spriteInfo.startFrame != 0 && channel->_startFrame > 0 &&
++			// The channel had a span and the frame has none (no sprite-detail
++			// entry). A channel empty all along keeps what Lingo draws in it.
++			bool spanEnded = frameSprite->_castId.member == 0 && frameSprite->_spriteListIdx == 0 && channel->_startFrame > 0;
++			if (frameSprite->_spriteListIdx != 0 && frameSprite->_spriteInfo.startFrame > 0 && channel->_startFrame > 0 &&
+ 					((int)frameSprite->_spriteInfo.startFrame != channel->_startFrame || (int)frameSprite->_spriteInfo.endFrame != channel->_endFrame))
+ 				spanEnded = true;
+ 			if (_version >= kFileVer600 && spanEnded && !channel->_sprite->_puppet) {
+-				if (frameSprite->_spriteInfo.startFrame != 0 && channel->_sprite->_autoPuppet)
++				if (channel->_sprite->_autoPuppet)
+ 					MDIAG(2, "sprite", "ch %d: span %d-%d ended, Lingo changes dropped", ch, channel->_startFrame, channel->_endFrame);
+ 				_channels[ch]->_sprite->endLingoChanges();
+ 			} else {
+@@ -2351,6 +2353,11 @@ void Score::loadFrameSpriteDetails(bool skipLog) {
+ 				}
+ 				delete stream;
+ 			}
++		} else {
++			// An empty channel has no span; the info of the span it had before
++			// stayed and made it look like that span went on (Mulle Meck's car
++			// channels, empty in the Leave frame, kept the car).
++			sprite->_spriteInfo = SpriteInfo();
+ 		}
+ 	}
+ 
+-- 
+2.54.0 (Apple Git-157)
+

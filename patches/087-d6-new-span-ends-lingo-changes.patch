@@ -1,0 +1,45 @@
+From aac6f4cee3d5de9419bac866e027d7a985811c9c Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 13:56:40 +0200
+Subject: [PATCH] director: D6 Lingo changes to a sprite also end when its
+ channel enters another span
+
+Mulle Meck's car is drawn by Lingo into placeholder spans; it stayed over
+the ignition picture of the next span when a scene was left.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/score.cpp | 16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index e1d55ec..fe0e24b 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -600,10 +600,20 @@ void Score::updateCurrentFrame() {
+ 			uint32 mask = _currentFrame->_sprites[ch]->_copyBackMask;
+ 			// D6: Lingo changes to a sprite end with its span. A frame with no
+ 			// sprite at all in the channel ends it (Mulle Meck 86's car, drawn by
+-			// Lingo, stayed on top of the "Leave" ignition picture).
+-			if (_version >= kFileVer600 && _currentFrame->_sprites[ch]->_castId.member == 0 &&
+-					_currentFrame->_sprites[ch]->_spriteInfo.startFrame == 0 && !_channels[ch]->_sprite->_puppet)
++			// Lingo, stayed on top of the "Leave" ignition picture), and so does
++			// a frame from another span: the car's placeholder spans end where
++			// the ignition picture starts.
++			const Sprite *frameSprite = _currentFrame->_sprites[ch];
++			const Channel *channel = _channels[ch];
++			bool spanEnded = frameSprite->_castId.member == 0 && frameSprite->_spriteInfo.startFrame == 0;
++			if (frameSprite->_spriteInfo.startFrame != 0 && channel->_startFrame > 0 &&
++					((int)frameSprite->_spriteInfo.startFrame != channel->_startFrame || (int)frameSprite->_spriteInfo.endFrame != channel->_endFrame))
++				spanEnded = true;
++			if (_version >= kFileVer600 && spanEnded && !channel->_sprite->_puppet) {
++				if (frameSprite->_spriteInfo.startFrame != 0 && channel->_sprite->_autoPuppet)
++					MDIAG(2, "sprite", "ch %d: span %d-%d ended, Lingo changes dropped", ch, channel->_startFrame, channel->_endFrame);
+ 				mask = 0xFFFFFFFF;
++			}
+ 			_channels[ch]->_sprite->releaseAutoPuppet(mask);
+ 		}
+ 
+-- 
+2.54.0 (Apple Git-157)
+

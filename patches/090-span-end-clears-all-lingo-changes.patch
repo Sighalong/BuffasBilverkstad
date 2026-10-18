@@ -1,0 +1,87 @@
+From c99065a8bc78dc5e6a9b2d9162722538f1d20a9d Mon Sep 17 00:00:00 2001
+From: Sighalong <noreply@example.invalid>
+Date: Sun, 18 Oct 2026 14:13:20 +0200
+Subject: [PATCH] director: the end of a D6 sprite span ends every Lingo change
+ to it
+
+The copy-back table has no bit for rect, locH, locV, blend and others, so
+releasing a sprite at a span end left those flags set; the sprite stayed
+Lingo's and was never replaced. Mulle Meck's car stayed over the ignition
+picture in the Leave frame, where its channels are empty. Only the span-end
+paths clear everything; a backward jump keeps its copy-back mask as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engines/director/lingo/lingo-events.cpp |  2 +-
+ engines/director/score.cpp              |  5 +++--
+ engines/director/sprite.cpp             | 11 +++++++++++
+ engines/director/sprite.h               |  1 +
+ 4 files changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/engines/director/lingo/lingo-events.cpp b/engines/director/lingo/lingo-events.cpp
+index a0d8969..412caac 100644
+--- a/engines/director/lingo/lingo-events.cpp
++++ b/engines/director/lingo/lingo-events.cpp
+@@ -1100,7 +1100,7 @@ void Score::createScriptInstances(int frameNum) {
+ 					frameNum >= frameSprite->_spriteInfo.startFrame && frameNum <= frameSprite->_spriteInfo.endFrame &&
+ 					(channel->_startFrame != (int)frameSprite->_spriteInfo.startFrame || channel->_endFrame != (int)frameSprite->_spriteInfo.endFrame)) {
+ 				if (!channel->_sprite->_puppet) {
+-					channel->_sprite->releaseAutoPuppet(0xFFFFFFFF);
++					channel->_sprite->endLingoChanges();
+ 					channel->replaceSprite(frameSprite);
+ 					channel->setNeedsDraw();
+ 				}
+diff --git a/engines/director/score.cpp b/engines/director/score.cpp
+index fe0e24b..dfc59ba 100644
+--- a/engines/director/score.cpp
++++ b/engines/director/score.cpp
+@@ -612,9 +612,10 @@ void Score::updateCurrentFrame() {
+ 			if (_version >= kFileVer600 && spanEnded && !channel->_sprite->_puppet) {
+ 				if (frameSprite->_spriteInfo.startFrame != 0 && channel->_sprite->_autoPuppet)
+ 					MDIAG(2, "sprite", "ch %d: span %d-%d ended, Lingo changes dropped", ch, channel->_startFrame, channel->_endFrame);
+-				mask = 0xFFFFFFFF;
++				_channels[ch]->_sprite->endLingoChanges();
++			} else {
++				_channels[ch]->_sprite->releaseAutoPuppet(mask);
+ 			}
+-			_channels[ch]->_sprite->releaseAutoPuppet(mask);
+ 		}
+ 
+ 		// Finally, update the channels and buffer any dirty rectangles.
+diff --git a/engines/director/sprite.cpp b/engines/director/sprite.cpp
+index a349def..d1e1353 100644
+--- a/engines/director/sprite.cpp
++++ b/engines/director/sprite.cpp
+@@ -508,6 +508,17 @@ void Sprite::releaseAutoPuppet(uint32 copyBackMask) {
+ 			setAutoPuppet(release.property, false);
+ }
+ 
++void Sprite::endLingoChanges() {
++	// D6: at the end of a span every Lingo change ends, also those the
++	// copy-back table has no bit for (rect, locH, locV, blend...). One left
++	// set kept Mulle Meck's car over the ignition picture.
++	releaseAutoPuppet(0xFFFFFFFF);
++	if (_autoPuppet != kAPNone) {
++		MDIAG(2, "sprite", "span end clears Lingo changes left by the copy-back table: 0x%x", _autoPuppet);
++		_autoPuppet = kAPNone;
++	}
++}
++
+ void Sprite::setWidth(int w) {
+ 	_width = MAX<int>(w, 0);
+ 
+diff --git a/engines/director/sprite.h b/engines/director/sprite.h
+index ab13f38..2bfe9dd 100644
+--- a/engines/director/sprite.h
++++ b/engines/director/sprite.h
+@@ -130,6 +130,7 @@ public:
+ 	void setAutoPuppet(AutoPuppetProperty property, bool value);
+ 	bool getAutoPuppet(AutoPuppetProperty property);
+ 	void releaseAutoPuppet(uint32 copyBackMask);
++	void endLingoChanges();
+ 
+ 	inline int getWidth() { return _width; }
+ 	void setWidth(int w);
+-- 
+2.54.0 (Apple Git-157)
+
