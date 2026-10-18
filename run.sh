@@ -10,7 +10,7 @@ shift
 SVM=$ROOT/build/scummvm-2026.4.0/scummvm
 [[ -x $SVM ]] || SVM="$ROOT/Buffas Bilverkstad.app/Contents/MacOS/scummvm"
 [[ -x $SVM ]] || { echo "build first (./build.sh) or put Buffas Bilverkstad.app next to run.sh" >&2; exit 1; }
-mkdir -p "$ROOT/saves"
+mkdir -p "$ROOT/saves" "$ROOT/build"
 INI=$ROOT/scummvm.ini
 [[ -f $INI ]] || printf '[scummvm]\nsavepath=%s\nenable_unsupported_game_warning=false\n' "$ROOT/saves" > "$INI"
 ARGS=(--config="$INI" --path="$GAME")

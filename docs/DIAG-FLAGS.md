@@ -1,26 +1,63 @@
-# Diagnostics for the one batched play-test run (patches 0030-0031)
+# Diagnostics and test hooks
 
-Each event is one line `MDIAG <ms> <area>: ...` in the normal log. Areas: movie, go, call (undefined handler,
-sendSprite miss), error (uncaught Lingo error + call stack), window (MIAW), fileio, save, sound, input
-(mouse/key, now|queued), loadfail, shot; level 2 adds hover, cursor(), tempo/frame and 05 map sprite lines.
+For developers. All of this is off or quiet unless you turn it on; players don't need any of it.
 
-## Run (level 1 is the default, no flags needed)
-```
-tools/run-game.sh --trace      # = --debugflags=lingoexec --debuglevel=2, log in build/run.log
-```
-Without --trace only MDIAG/warnings are kept: `tools/run-game.sh 2>&1 | tee build/run.log` (small, whole session).
-Level 2: put `mdiag=2` in the `[scummvm]` section of scummvm.ini (0 = off). `MULLE_TAIL=1000000` keeps more trace lines.
-`MULLE_SHOTS=<existing dir> tools/run-game.sh` saves `<movie>-f<frame>-<ms>.bmp` every 2 s (logs `MDIAG shot:`).
+## MDIAG log lines
 
-## Read it
+The patches add one-line event logs: `MDIAG <ms> <area>: ...` (as ScummVM warnings, on stderr).
+Areas: `movie`, `go`, `call` (undefined handler, sendSprite miss), `error` (uncaught Lingo error, call stack and
+`me` properties), `window` (MIAW), `fileio`, `save`, `sound`, `input` (mouse/key), `loadfail`, `render`, `trans`,
+`prog` (game progress flags), `shot`, `replay`.
+
+The level comes from `mdiag` in the `[scummvm]` section of `scummvm.ini`:
+
+| `mdiag=` | Logs |
+|---|---|
+| `0` | nothing |
+| `1` (default) | the events above |
+| `2` | also hover, cursor, tempo/frame and slow-frame detail |
+
+## Running with a log
+
+```bash
+./run.sh /path/to/game --trace    # Lingo trace (--debugflags=lingoexec --debuglevel=2) + MDIAG, into build/run.log
+./run.sh /path/to/game 2>&1 | tee build/run.log    # MDIAG and warnings only (small)
 ```
-tools/log-summary.sh [log]           # ends with MDIAG counts per area + last 15 MDIAG lines before the first fatal
-tools/log-summary.sh --diff A B      # movies / MDIAG areas / fatals new or gone between two logs
-tools/shots-summary.sh <dir>         # changed shots, ALL-WHITE/BLACK flags, <dir>/contact.png
-tools/lingo-lint.sh                  # engine gaps vs the game's Lingo ("X of sprite" hits are behaviour props)
-grep -a 'MDIAG [0-9]* fileio:' build/run.log     # one area
+`--trace` logs can get very large. `tools/cap-log.pl` (used by `--trace`) keeps the first 20 MB and the last
+200,000 lines. Summarise a log with (`log-summary.sh` needs zsh, standard on macOS):
+```bash
+tools/log-summary.sh [log]          # movies loaded, first fatal error, warning types, MDIAG counts per area, last MDIAG lines
+tools/log-summary.sh --diff A B     # what changed between two logs
 ```
-Play order: logo -> name screen -> 03 garage -> 04 yard (MIAW 18) -> 05 driving/map -> 06/13 save+load car -> quit.
-Unattended: `tools/replay-test.sh [script] [secs] [target]` replays docs/replay-name-to-garage.txt via MULLE_CLICKS (patch 0037), log build/replay.log.
-Scenarios: docs/replay-garage-to-driving.txt (to 05), `tools/replay-test.sh --persist` (M8 save/relaunch/restore). Exit 0 PASS, 1 FAIL, 2 fatal.
-- MULLE_QUITAFTER=<s>: posts a quit event after s seconds (same path as closing the window); used to test save-on-close (P0044).
+
+## Environment variables
+
+Set these when starting `run.sh` or `scummvm`, e.g. `MULLE_SHOTS=/tmp/shots ./run.sh /path/to/game`.
+
+| Variable | Effect |
+|---|---|
+| `MULLE_SHOTS=<dir>` | Saves the stage as `<movie>-f<frame>-<ms>.bmp` in `<dir>` (the folder must exist) at most every 2 s, and logs `MDIAG shot:`. |
+| `MULLE_CLICKS=<steps>` | Scripted input, see below. |
+| `MULLE_EVAL=<movie>\|<Lingo>` | Runs the Lingo once, 1.5 s after a movie whose name starts with `<movie>` started. Chain steps with `\|\|`: `03\|...\|\|05\|...` (each runs once, in order). `;` inside the Lingo becomes a line break. Example: `MULLE_EVAL='03\|go(1, "92")'`. A scene reached this way skips the game's normal setup, so it's a test aid only, not a way to play. |
+| `MULLE_QUITAFTER=<s>` | Posts a quit event after `<s>` seconds, the same as closing the window (tests save-on-quit). |
+| `MULLE_AUTOKEY=<vk>` | The KeyPoll Xtra reports this Windows virtual-key code as held (e.g. `38` = Up). |
+| `MULLE_TOPOLOG=1` | Logs up to 400 character reads from very long strings (the driving maps' road topology). |
+
+### MULLE_CLICKS format
+
+Steps are separated by `;`. Each step waits for its delay, counted from when the previous step finished:
+
+| Step | Meaning |
+|---|---|
+| `x,y,ms` | Left click at stage position `x,y`, `ms` milliseconds after the previous step. |
+| `x,y,ms,r` | Right click. |
+| `key:<c>,ms` | Key press of character `<c>` (`key:enter` = Return). |
+| `@<movie> <step>` | Wait until the current movie's name starts with `<movie>` before counting the delay. |
+
+Example (pick the first name on the name screen and press Return):
+```bash
+MULLE_CLICKS='@10 396,146,1500;key:enter,1300' ./run.sh /path/to/game
+```
+Each click is sent as a mouse move, a press and a release, a few frames apart, through the same path as real
+input. Each step logs `MDIAG replay: step n/N`. Positions depend on the game state, so take them from the
+`MDIAG input:` lines of a real run.

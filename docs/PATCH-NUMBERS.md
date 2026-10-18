@@ -1,5 +1,9 @@
 # Patch numbers
 
+> In this repository the dropped and old patch sets mentioned below are not included; only the current
+> 3-digit series in `patches/` is.
+
+
 On 2026-10-18 patches/ was replaced by the set published in BuffasBilverkstad (3-digit numbers, git order, includes 6 diag commits that were never exported). Older docs use the old 4-digit numbers; this table maps them. The old folder is in build/attic/patches-old-0001-0078 (it did not reproduce the build). Next new patch: 093. (085-093 were redone on 2026-10-18 under the learn-only rule: 085-089 are our own rewrites; the old set is in build/attic/patches-dropped-085-093.)
 
 | old | new | name |

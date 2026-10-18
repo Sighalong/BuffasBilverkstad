@@ -1,5 +1,10 @@
 # Investigation log
 
+> **About this file:** this is the raw development log, kept for its findings. It mentions tools, docs and
+> folders from the private development setup that are not in this repository (for example `tools/smoke-test.sh`,
+> `docs/STATUS.md`, `build/attic/`), and uses the old 4-digit patch numbers (see PATCH-NUMBERS.md).
+
+
 Current state and open work: docs/STATUS.md and docs/BACKLOG.md. This file is the history of what was found and fixed; the patch for each fix is in `patches/` (numbered, one commit each in build/src). Sections marked "(open)" below were resolved later unless the text says otherwise.
 
 ## The disc

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Docs: DIAG-FLAGS.md now covers every `MULLE_*` test variable and the MDIAG levels; the outdated INPUT-REPLAY.md was removed; notes on dev-only references in INVESTIGATION.md and PATCH-NUMBERS.md; README fixes (patch file names, Windows).
+- run.sh creates `build/` for `--trace` logs (needed when running from the release zip).
+
 ## v0.1.0 (2026-10-18)
 
 First public release: 92 patches against ScummVM 2026.4.0, plus one macOS SDL2 cursor fix.

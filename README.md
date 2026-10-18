@@ -28,7 +28,7 @@ garage, junkyard, yard, driving and destinations.
 | `docs/PATCHES.md` | One line per patch: what it fixes and which files it touches |
 | `docs/INVESTIGATION.md` | Full investigation log (how each bug was found) |
 | `docs/PATCH-NUMBERS.md` | Maps the old 4-digit development numbers to the current ones |
-| `docs/DIAG-FLAGS.md`, `docs/INPUT-REPLAY.md` | Opt-in diagnostics for developers |
+| `docs/DIAG-FLAGS.md` | Opt-in diagnostics and test hooks for developers (MDIAG levels, `MULLE_*` variables) |
 | `CHANGELOG.md` | Release history |
 
 ## 1. Get the game files from your CD or ISO
@@ -91,7 +91,7 @@ pacman -S --needed base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-SDL2 c
 ./build.sh
 ```
 If you build ScummVM another way, apply `patches/*.patch` in order to a ScummVM 2026.4.0 source tree
-(`patch -p1 < patches/NNNN-name.patch`) and build it with the Director engine enabled.
+(`patch -p1 < patches/NNN-name.patch`) and build it with the Director engine enabled.
 
 ## 3. Play
 
@@ -100,8 +100,8 @@ If you build ScummVM another way, apply `patches/*.patch` in order to a ScummVM 
 ```
 `run.sh` uses `build/scummvm-2026.4.0/scummvm` when you built it yourself, or `Buffas Bilverkstad.app` when it sits next to it.
 Config (`scummvm.ini`) and saves (`saves/`) are created next to `run.sh`, so nothing is written elsewhere.
-On Windows, run the built `scummvm.exe` from the MSYS2 shell with the same script, or add the
-`game` folder in the ScummVM launcher (*Add Game…*).
+On Windows, start the built `scummvm.exe` and add the `game` folder with *Add Game…* (`run.sh` is
+written for macOS and Linux and is untested under MSYS2).
 
 You can also use the built `scummvm` binary like any ScummVM: start it, choose *Add Game…*, select your `game` folder.
 
@@ -117,8 +117,7 @@ driving, destinations and back, credits). Known issues:
 - Startup can show a white window for a few seconds before the logo.
 
 The patches also include diagnostics used during development (`MDIAG` log lines, and the `MULLE_SHOTS`,
-`MULLE_CLICKS` and `MULLE_EVAL` environment variables). These are inactive unless set; see `docs/DIAG-FLAGS.md`
-and `docs/INPUT-REPLAY.md`. The full investigation history is in `docs/INVESTIGATION.md`; older entries use 4-digit development
+`MULLE_CLICKS` and `MULLE_EVAL` environment variables). These are inactive unless set; see `docs/DIAG-FLAGS.md`. The full investigation history is in `docs/INVESTIGATION.md`; older entries use 4-digit development
 numbers, mapped in `docs/PATCH-NUMBERS.md`.
 
 ## Acknowledgements
