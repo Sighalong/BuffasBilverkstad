@@ -18,7 +18,7 @@ This guide is for people who just want to play. Pick your computer:
 
 You need **a Mac with Apple Silicon** (M1, M2, M3, M4 or later). Not sure? Click the Apple menu → *About This Mac*.
 If it says *Chip: Apple M…*, you're good. On an older Intel Mac there's no ready-made download yet; follow
-*Build it yourself* in the [README](README.md#2-get-the-engine) instead.
+*Build it yourself* in the [README](README.md#building-from-source) instead.
 
 ### Mac step 1: Download Buffas Bilverkstad
 
